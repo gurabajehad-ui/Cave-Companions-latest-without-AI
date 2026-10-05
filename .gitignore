@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# AI Model Cache (contains 136MB ONNX binary which exceeds GitHub 100MB limit)
+.model_cache/
+
+# Production Build and Dist Bundles
+build/
+dist/
+server.cjs
+server.cjs.map
+
+# Local SQLite databases & cache
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+cave_companions.db
+
+# Process IDs & dev runtime configs
+*.pid
+.dev.env.json
+
+# Test coverage & logs
+coverage/
+*.log
+.DS_Store
+
+# Environment files
+.env*
+!.env.example

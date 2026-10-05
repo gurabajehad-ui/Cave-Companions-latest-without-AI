@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="bn" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Cave Companions — জামাতে নামাজের ডিজিটাল ট্র্যাকার</title>
+    <meta name="description" content="Islamic reward-based community application for tracking congregational prayer attendance at registered mosques." />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Cave" />
+    <meta name="application-name" content="Cave Companions" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Anek+Bangla:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+    <meta name="theme-color" content="#000000" />
+    <link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+      // Synchronously capture beforeinstallprompt to prevent race condition with React's render/hydration
+      window.deferredPrompt = null;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        window.deferredPrompt = e;
+        // Dispatch custom event in case React is already mounted
+        window.dispatchEvent(new CustomEvent('pwa-prompt-available', { detail: e }));
+      });
+    </script>
+    <style>
+      body { background-color: #000000; margin: 0; padding: 0; }
+      #root { min-height: 100vh; }
+    </style>
+  </head>
+  <body class="font-sans antialiased selection:bg-amber-600 selection:text-white bg-black">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

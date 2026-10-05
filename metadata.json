@@ -1,0 +1,12 @@
+{
+  "name": "Cave Companions",
+  "description": "Islamic reward-based community application with congregational prayer tracking, Gold/Silver/Bronze tokens, Partner Shop network, and Merchant QR redemption.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation",
+    "accelerometer",
+    "gyroscope",
+    "magnetometer"
+  ],
+  "majorCapabilities": []
+}
