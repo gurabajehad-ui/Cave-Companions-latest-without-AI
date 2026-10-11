@@ -1,9 +1,15 @@
 import * as esbuild from 'esbuild';
 import fs from 'fs';
 
+const adhanCjsDir = './node_modules/adhan/lib/cjs';
+if (fs.existsSync(adhanCjsDir)) {
+  fs.writeFileSync(`${adhanCjsDir}/package.json`, JSON.stringify({ type: 'commonjs' }, null, 2));
+}
+
 const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
+const bundledDeps = ['adhan'];
 const externals = [
-  ...Object.keys(pkg.dependencies || {}),
+  ...Object.keys(pkg.dependencies || {}).filter(dep => !bundledDeps.includes(dep)),
   'sqlite3',
   'esbuild',
   'pg-native',
@@ -22,7 +28,6 @@ await esbuild.build({
   bundle: true,
   platform: 'node',
   format: 'cjs',
-  packages: 'external',
   loader: {
     '.node': 'empty'
   },

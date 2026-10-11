@@ -1,0 +1,30 @@
+{
+  "entities": {
+    "PilotSnapshot": {
+      "title": "PilotSnapshot",
+      "description": "Compressed database state snapshot ensuring pilot test data persistence in Cloud Run",
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "string",
+          "description": "Base64 encoded gzipped database binary buffer"
+        },
+        "size": {
+          "type": "number",
+          "description": "Byte length of uncompressed database"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of the snapshot"
+        }
+      },
+      "required": ["data", "size", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/_pilot_persistence/{docId}": {
+      "schema": "PilotSnapshot",
+      "description": "Collection storing application database snapshots for seamless cross-instance persistence"
+    }
+  }
+}

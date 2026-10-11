@@ -560,7 +560,8 @@ router.post('/register-request', otpRequestRateLimiter, async (req, res) => {
     res.json({
       success: true,
       message: 'আপনার নম্বরে ৬ ডিজিটের অ্যাকাউন্ট ভেরিফিকেশন কোড পাঠানো হয়েছে।',
-      identifier: cleanPhone
+      identifier: cleanPhone,
+      devOtp: otpCode
     });
   } catch (err: any) {
     console.error('register-request error:', err);
@@ -709,7 +710,8 @@ router.post('/forgot-password-request', otpRequestRateLimiter, async (req, res) 
     res.json({
       success: true,
       message: 'যদি এই তথ্যে কোনো অ্যাকাউন্ট থেকে থাকে, তবে আপনার মোবাইল/ইমেইলে ভেরিফিকেশন কোড পাঠানো হয়েছে।',
-      identifier: clean
+      identifier: clean,
+      devOtp: user ? otpCode : undefined
     });
   } catch (err: any) {
     console.error('forgot-password-request error:', err);

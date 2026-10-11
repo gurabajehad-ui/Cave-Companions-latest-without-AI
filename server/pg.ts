@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import initSqlJs from 'sql.js';
 import { recordSqlEvent } from './logger.js';
+import { restoreDatabaseSnapshotFromFirestore, queueDatabaseSync } from './services/firestorePersistence.js';
 
 const { Pool } = pg;
 
@@ -84,6 +85,8 @@ function saveSqliteDb(db: any) {
     const buffer = Buffer.from(data);
     const dbPath = path.join(process.cwd(), 'cave_companions.db');
     fs.writeFileSync(dbPath, buffer);
+    // Asynchronously queue Firestore cloud sync to ensure persistence across Cloud Run restarts
+    queueDatabaseSync(() => buffer);
   } catch (err: any) {
     console.error('[SQLite Fallback] Error saving database to disk:', err.message);
   }
@@ -181,12 +184,27 @@ async function ensureDatabase(): Promise<void> {
       if (!global._sqliteDb) {
         const SQL = await initSqlJs();
         const dbPath = path.join(process.cwd(), 'cave_companions.db');
-        if (fs.existsSync(dbPath)) {
-          console.log(`[Database Router] Local development environment: using persistent SQLite database at ${dbPath}`);
-          const fileBuffer = fs.readFileSync(dbPath);
+        
+        let fileBuffer: Buffer | null = null;
+        try {
+          fileBuffer = await restoreDatabaseSnapshotFromFirestore();
+          if (fileBuffer) {
+            console.log(`[Database Router] Successfully restored persisted database from Firestore cloud storage (${(fileBuffer.length / 1024).toFixed(1)} KB)`);
+            fs.writeFileSync(dbPath, fileBuffer);
+          }
+        } catch (fErr: any) {
+          console.warn('[Database Router] Firestore snapshot restore warning:', fErr.message);
+        }
+
+        if (!fileBuffer && fs.existsSync(dbPath)) {
+          console.log(`[Database Router] Local environment: using persistent SQLite database at ${dbPath}`);
+          fileBuffer = fs.readFileSync(dbPath);
+        }
+
+        if (fileBuffer) {
           global._sqliteDb = new SQL.Database(fileBuffer);
         } else {
-          console.log(`[Database Router] Local development environment: initializing new SQLite database at ${dbPath}`);
+          console.log(`[Database Router] Local environment: initializing new SQLite database at ${dbPath}`);
           global._sqliteDb = new SQL.Database();
         }
       }

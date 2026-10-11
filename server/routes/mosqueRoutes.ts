@@ -27,7 +27,9 @@ router.get('/', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'SERVER_ERROR',
-      message: 'মসজিদ তালিকা আনতে সমস্যা হয়েছে।'
+      message: err.message || String(err),
+      detail: err.detail,
+      stack: err.stack
     });
   }
 });

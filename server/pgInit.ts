@@ -7,47 +7,6 @@ export async function initPostgresSchema() {
   try {
     await client.query('BEGIN');
 
-    // Early execute Alter tables for mosques to prevent failure if lower tables fail
-    try {
-      // Import query directly to run outside the current transaction
-      const { query } = await import('./pg.js');
-      await query(`
-        ALTER TABLE mosques ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION DEFAULT 0;
-        ALTER TABLE mosques ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION DEFAULT 0;
-        ALTER TABLE mosques ADD COLUMN IF NOT EXISTS description TEXT;
-        ALTER TABLE mosques ADD COLUMN IF NOT EXISTS image_url TEXT;
-        ALTER TABLE mosques ADD COLUMN IF NOT EXISTS imam_image_url TEXT;
-        ALTER TABLE mosques ADD COLUMN IF NOT EXISTS requested_by_user_id VARCHAR(255);
-        ALTER TABLE mosques ADD COLUMN IF NOT EXISTS requested_by_name VARCHAR(255);
-        ALTER TABLE mosques ADD COLUMN IF NOT EXISTS requested_by_phone VARCHAR(255);
-        ALTER TABLE mosques ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
-        ALTER TABLE mosques ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
-        ALTER TABLE mosques ADD COLUMN IF NOT EXISTS reviewed_by VARCHAR(255);
-        ALTER TABLE mosques ADD COLUMN IF NOT EXISTS verification_radius DOUBLE PRECISION DEFAULT 75;
-        ALTER TABLE mosques ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
-
-        UPDATE mosques SET verification_radius = 75 WHERE verification_radius IS NULL OR verification_radius <= 0;
-
-        -- Ensure default partner mosques have valid coordinates
-        UPDATE mosques SET latitude = 23.7289, longitude = 90.4128 WHERE qr_identifier = 'CAVE_MSQ_001_DHAKA_BAITUL_MUKARRAM' AND (latitude = 0 OR latitude IS NULL);
-        UPDATE mosques SET latitude = 23.7388, longitude = 90.4072 WHERE qr_identifier = 'CAVE_MSQ_002_DHAKA_KAKRAIL_JAME' AND (latitude = 0 OR latitude IS NULL);
-        UPDATE mosques SET latitude = 23.7915, longitude = 90.4152 WHERE qr_identifier = 'CAVE_MSQ_003_DHAKA_GULSHAN_AZAD' AND (latitude = 0 OR latitude IS NULL);
-        UPDATE mosques SET latitude = 23.7431, longitude = 90.3742 WHERE qr_identifier = 'CAVE_MSQ_004_DHAKA_DHANMONDI_SHAHI' AND (latitude = 0 OR latitude IS NULL);
-        UPDATE mosques SET latitude = 23.8687, longitude = 90.3986 WHERE qr_identifier = 'CAVE_MSQ_005_DHAKA_UTTARA_SEC7' AND (latitude = 0 OR latitude IS NULL);
-        UPDATE mosques SET latitude = 22.3385, longitude = 91.8385 WHERE qr_identifier = 'CAVE_MSQ_006_CTG_ANDERKILLA_SHAHI' AND (latitude = 0 OR latitude IS NULL);
-        UPDATE mosques SET latitude = 24.8996, longitude = 91.8718 WHERE qr_identifier = 'CAVE_MSQ_007_SYLHET_SHAH_JALAL' AND (latitude = 0 OR latitude IS NULL);
-      `);
-      console.log('[PostgreSQL] mosques table altered successfully.');
-    } catch (e: any) {
-      console.warn('[PostgreSQL] Failed to alter mosques early:', e.message);
-    }
-
-    // Early ensure circle_members chat_cleared_at column
-    try {
-      const { query } = await import('./pg.js');
-      await query(`ALTER TABLE circle_members ADD COLUMN chat_cleared_at TIMESTAMP WITH TIME ZONE;`);
-    } catch (_) {}
-
     // 1. Users Table
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (

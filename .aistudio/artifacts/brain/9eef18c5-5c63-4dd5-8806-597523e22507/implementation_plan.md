@@ -1,127 +1,99 @@
-# Comprehensive Codebase Audit & System Verification Report
+# Complete SQLite Removal & PostgreSQL Migration Plan
 
-A thorough read-only re-audit of the entire Cave Companions application codebase covering dead and abandoned code, bug status, and comprehensive subsystem testing.
+Audit and execution plan to eliminate SQLite completely from the Cave Companions architecture and ensure 100% of data persistence and business logic runs purely on PostgreSQL with zero logic degradation.
+
+---
 
 ### User Review & Critical Decisions
 
 > [!IMPORTANT]
-> This audit was conducted under the strict instruction: **"কোনো কিছু পরিবর্তন করবে না, শুধু রিপোর্ট দাও"** (Do not modify anything, provide report only). No application source files have been altered.
-
-- **Confirmed Decision 1 (Scope)**: Cover unused functions, routes, and dead legacy files across client and server.
-- **Confirmed Decision 2 (Format)**: Deep line-by-line inspection structured by module and route, coupled with end-to-end verification.
-- **Audit Outcome**: 
-  - **Dead / Abandoned Code**: 2 unreferenced frontend components, 5 standalone test/benchmark scripts, and 46 unused/orphaned admin utility endpoints identified.
-  - **Bug Status**: 0 new bugs or regressions found; all 11 prior vulnerabilities remain fixed and secured.
-  - **System Health**: All 10 core subsystems tested and confirmed healthy (`200 OK` on health/data routes, strict `401`/`403` on auth guards).
+> **Audit Answer (তথ্য, লজিক ও কোড পরিবর্তন সংক্রান্ত)**:
+> 1. **কোড ও লজিক (Code & Logic)**: কোনো বিজনেস লজিক বা ফিচার পরিবর্তিত হবে না। অ্যাপের সমস্ত কুয়েরি (`server/db.ts`) ইতোমধ্যেই PostgreSQL সিনট্যাক্সে (`$1, $2`, `JSONB`, `TIMESTAMPTZ`, `ILIKE`, `ON CONFLICT`) প্রস্তুত করা। SQLite ছিল একটি ডুয়েল ট্রান্সলেশন লেয়ার—এটি সরিয়ে দিলে সিস্টেম আরও দ্রুত ও ঝামেলামুক্ত হবে।
+> 2. **ফাইল স্ট্যাটাস (Deleted Files)**: আপনি যে ৮টি ফাইল ডিলিট করেছেন (যেমন `cave_companions.db`, `server.cjs`, `.cloud_sql_proxy.pid` ইত্যাদি), সেগুলো ছিল পুরনো বান্ডল, সাময়িক PID ও পুরনো SQLite ফাইল। এগুলো ডিলিট হওয়াতে কোনো ক্ষতি হয়নি, বরং প্রজেক্ট এখন ক্লিন হয়েছে।
+> 3. **নতুন ডেটাবেজ ইনিশিয়ালাইজেশন**: PostgreSQL-এ অ্যাপের সকল মূল টেবিল (`users`, `mosques`, `prayer_attendance`, `shops`, `products`, `orders`, `tokens`, `redemptions`, `notifications` ইত্যাদি) এবং ডিফল্ট সিড ডেটা ক্লিন ও নির্ভুলভাবে সক্রিয় হবে।
 
 ---
 
-### 1. Overview & Audit Scope
+### 1. Overview & Core Concept
 
-The Cave Companions platform encompasses a dual-tier full-stack architecture featuring a React 19 + TypeScript frontend and a Node.js + Express backend running dual-mode storage (PostgreSQL with self-healing fallback). This audit inspects three specific dimensions requested by the user:
+- **What It Does**: Transitions the Cave Companions server from a hybrid dual-engine setup (PostgreSQL with SQLite fallback) into a single, high-performance PostgreSQL persistence layer.
+- **Key Value**: 
+  - Removes 100% of SQLite code, translation shims, and heavy WASM modules (`sql.js`, `sqlite3`).
+  - Native JSONB querying, ACID transactions, and robust relational constraints.
+  - Fixes socket/host resolution for Google Cloud SQL proxy connectivity.
+
+---
+
+### 2. Technical Architecture & System Flow
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        AUDIT OBJECTIVES & SCOPE                        │
-├──────────────────────────┬─────────────────────────────────────────────┤
-│ 1. Dead / Abandoned Code │ Scan for unimported components, orphaned    │
-│                          │ files, and inactive backend route handlers  │
-├──────────────────────────┼─────────────────────────────────────────────┤
-│ 2. Bug Status            │ Verify all 11 remediated bugs and check for │
-│                          │ any remaining runtime risks or regressions  │
-├──────────────────────────┼─────────────────────────────────────────────┤
-│ 3. Subsystem Health      │ Run end-to-end automated API and logic      │
-│                          │ verification across all primary services    │
-└──────────────────────────┴─────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                   Cave Companions Client                    │
+│            (React SPA on Vite / PWA Mobile App)             │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ HTTPS / JSON REST API
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 Express Backend (server.ts)                 │
+│    Routes: Auth, Prayers, Mosques, Market, Shops, Admin     │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                ┌──────────────┴──────────────┐
+                ▼                             ▼
+   ┌───────────────────────────┐ ┌───────────────────────────┐
+   │    server/db.ts (Logic)   │ │  server/pgInit.ts (Schema)│
+   │ Direct PostgreSQL Queries │ │ Tables, Indexes, Seed DDL │
+   └─────────────┬─────────────┘ └─────────────┬─────────────┘
+                 │                             │
+                 └──────────────┬──────────────┘
+                                ▼
+   ┌─────────────────────────────────────────────────────────┐
+   │            server/pg.ts (Pure PostgreSQL Pool)          │
+   │    • pg.Pool with automatic Unix Socket / TCP resolver   │
+   │    • Removed SQLite WASM engine & translation shims      │
+   │    • Real-time connection health & error diagnostics    │
+   └────────────────────────────┬────────────────────────────┘
+                                │ Unix Domain Socket / Port 5432
+                                ▼
+   ┌─────────────────────────────────────────────────────────┐
+   │              PostgreSQL / Cloud SQL Database            │
+   │      Tables: users, mosques, prayer_attendance, ...     │
+   └─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### 2. Dead & Abandoned Code Findings
+### 3. Key Product Decisions & Migration Steps
 
-#### A. Unreferenced Frontend Components
-1. **`src/components/RiderLogin.tsx`**:
-   - **Status**: Orphaned standalone component.
-   - **Details**: The auth system manages rider logins inside `AuthScreen.tsx` and custom modals; `RiderLogin.tsx` is defined but never imported or rendered by `App.tsx` or any view.
-2. **`src/components/hisnulMuslim/HisnulMuslimCard.tsx`**:
-   - **Status**: Unreferenced card component.
-   - **Details**: The Hisnul Muslim feature uses inline modals and direct list components; `HisnulMuslimCard.tsx` has no active callers in the `src/` directory.
+#### Decision 1: Pure PostgreSQL vs. Hybrid Fallback
+- **Chosen Approach**: Completely remove the SQLite engine, `sql.js`, `cave_companions.db`, and `translatePgToSqlite` functions.
+- **Why**: SQLite was causing dual-state divergence, regex query translations, and WASM memory overhead. Moving to pure PostgreSQL ensures production-grade ACID reliability.
 
-#### B. Standalone Server Scripts & Benchmarks
-In `server/moderation/`:
-- `benchmarkComparison.ts`
-- `benchmarkModel.ts`
-- `runPhase4Tests.ts`
-- `runPhase5Tests.ts`
-- `runPhase7To9Tests.ts`
-- **Status**: Development benchmark harnesses. They are not imported into the production server pipeline (`server/index.ts`) and can be safely archived or maintained purely for CLI testing.
+#### Decision 2: Cloud SQL Unix Socket & Host Auto-Discovery
+- **Chosen Approach**: Dynamic socket resolver in `server/pg.ts` that checks active socket files in `/app/cloudsql/` and connects to the correct instance name (`gen-lang-client-...` or configured host) automatically.
+- **Why**: Eliminates `ENOENT` connection errors caused by project name changes across environments.
 
-#### C. Uncalled / Orphaned Backend Route Handlers
-Of the 16 backend route modules (135+ total endpoints), several utility routes have no direct callers in the current frontend SPA:
-- **`adminRoutes.ts`**: 46 legacy management routes (e.g. `PUT /mosques/:id/status`, `POST /mosques/:id/regenerate-qr`, `POST /shops/:id/approve-merchant`) are present on the server for direct administrative curl/API integrations but are not invoked by the client UI.
-- **`riderRoutes.ts`**: Order lifecycle mutation endpoints (`/orders/:orderId/pickup`, `/orders/:orderId/deliver`) implemented for upcoming mobile/rider companion apps.
-- **`circleRoutes.ts`**: WebRTC voice call signaling routes (`GET /calls/:callId/status`, `POST /calls/:callId/answer`) currently reserved for future real-time calling features.
+#### Decision 3: Dependency Pruning
+- **Chosen Approach**: Remove `"sqlite3"` and `"sql.js"` from `package.json`. Keep only `"pg"` and `"@types/pg"`.
+- **Why**: Lightens deployment image and reduces container cold-start time.
 
 ---
 
-### 3. Bug & Security Status
+### 4. Step-by-Step Execution Plan
 
-All 11 previously resolved vulnerabilities and defects were re-verified under live conditions:
+1. **Clean `server/pg.ts`**:
+   - Strip all SQLite imports (`initSqlJs`, `sql.js`, `saveSqliteDb`, `translatePgToSqlite`).
+   - Implement resilient PostgreSQL host/socket detection that checks `/app/cloudsql` directory and connects via `pg.Pool`.
+   - Expose clean `query`, `getClient`, and `pool` helpers.
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                     PREVIOUS BUGS RE-CHECK STATUS                      │
-├──────────────────────────────────────┬──────────┬──────────────────────┤
-│ Issue Description                    │ Severity │ Current Status       │
-├──────────────────────────────────────┼──────────┼──────────────────────┤
-│ 1. Hardcoded Admin Master Backdoors  │ CRITICAL │ ✅ BLOCKED (403)     │
-│ 2. Unauthenticated /api/debug-db     │ CRITICAL │ ✅ PROTECTED (401)   │
-│ 3. Unauthenticated /upload-media     │ CRITICAL │ ✅ PROTECTED (401)   │
-│ 4. MCH- Prefix Admin Bypass          │ CRITICAL │ ✅ REMOVED           │
-│ 5. devOtp Account Takeover Leak      │ CRITICAL │ ✅ REMOVED           │
-│ 6. Merchant '123456' OTP Backdoor    │ CRITICAL │ ✅ REMOVED           │
-│ 7. Order History Deletion IDOR       │ HIGH     │ ✅ ENFORCED (UserId) │
-│ 8. Circle DB Transaction Anti-pattern│ HIGH     │ ✅ DEDICATED CLIENT  │
-│ 9. Rate Limiter IP Spoofing          │ HIGH     │ ✅ SECURED (req.ip)  │
-│ 10. Undeclared framer-motion Import  │ MEDIUM   │ ✅ FIXED (motion)    │
-│ 11. Unhandled JSON.parse in Circles  │ MEDIUM   │ ✅ SAFE PARSE        │
-└──────────────────────────────────────┴──────────┴──────────────────────┘
-```
+2. **Schema & Migration Verification (`server/pgInit.ts`)**:
+   - Verify table creation scripts in PostgreSQL for all 25+ application tables.
+   - Ensure default super admin account, system settings, and essential seeds are intact.
 
-**New Bug Scan Results**: 0 runtime bugs, 0 syntax/type errors (`tsc --noEmit` clean), and 0 build errors.
+3. **Prune Dependencies**:
+   - Remove `sqlite3` and `sql.js` from `package.json`.
 
----
-
-### 4. Technical Architecture & Subsystem Health Tests
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                      SUBSYSTEM VERIFICATION FLOW                       │
-└────────────────────────────────────────────────────────────────────────┘
-
-    Client Request ─────► Express Middleware (RateLimiter + TrustProxy)
-                                   │
-              ┌────────────────────┼────────────────────┐
-              ▼                    ▼                    ▼
-       [Public APIs]        [Auth Guard]         [Admin Guard]
-        - /health (200)      - Login Validation   - Users (401/403)
-        - /ads (200)         - OTP Security       - Media Upload (401)
-        - /mosques (200)     - JWT Signature      - Debug DB (401)
-        - /shops (200)             │                    │
-              │                    ▼                    ▼
-              └──────────────► Database Access Layer (pg.ts / db.ts)
-                                   │
-                      PostgreSQL Connection Pool
-```
-
-#### Live Test Results:
-1. **Health Diagnostic (`/api/health`)**: `200 OK` — `{"status":"ok","app":"Cave Companions API","version":"2.0.0 (Phase 1-7)"}`.
-2. **Active Ads Engine (`/api/ads?page=home`)**: `200 OK` — Active ads correctly retrieved.
-3. **Public Helpline (`/api/support/helpline`)**: `200 OK` — Support configurations and WhatsApp flags live.
-4. **Nasiha & Spiritual Content (`/api/support/nasiha`)**: `200 OK` — Islamic content loaded cleanly.
-5. **Shop Catalog (`/api/shops`)**: `200 OK` — Merchant storefronts and items responsive.
-6. **Mosque Directory (`/api/mosques`)**: `200 OK` — Mosque coordinates and prayer verification live.
-7. **Admin Authorization Barrier (`/api/admin/users`)**: `401 Unauthorized` without credentials; `403 Forbidden` with old backdoor key.
-8. **Internal DB Guard (`/api/debug-db`)**: `401 Unauthorized` for non-admin callers.
-9. **Media Ingestion Barrier (`/api/admin/upload-media`)**: `401 Unauthorized` for anonymous uploads.
-10. **Frontend Build Pipeline**: `npm run build` completed with 0 errors.
+4. **Comprehensive System & API Audit**:
+   - Run compilation (`compile_applet`) and verify build passes.
+   - Run automated health test querying PostgreSQL tables.
+   - Test user authentication, prayer verification, and shops API endpoints.

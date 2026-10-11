@@ -657,6 +657,9 @@ export default function App() {
   // User cached location ref with timestamp to prevent repeated GPS requests within 45 seconds
   const lastKnownLocationRef = useRef<{ lat: number; lng: number; timestamp: number } | null>(null);
 
+  // Source tab tracker for All Features back navigation
+  const [featuresSourceTab, setFeaturesSourceTab] = useState<ActiveTab>('home');
+
   // Stable navigation & modal handlers to preserve React.memo across renders
   const handleOpenMosques = useCallback(() => setShowMosqueModal(true), []);
   const handleOpenNotifications = useCallback(() => setActiveTab('notifications'), []);
@@ -666,7 +669,16 @@ export default function App() {
   const handleOpenTokenRules = useCallback(() => setActiveTab('token_rules'), []);
   const handleOpenQibla = useCallback(() => setShowQiblaModal(true), []);
   const handleOpenLegal = useCallback((type: 'privacy' | 'terms' | 'about') => setLegalModalType(type), []);
-  const handleNavigateTab = useCallback((tab: string) => setActiveTab(tab as ActiveTab), []);
+  const handleOpenAllFeatures = useCallback(() => {
+    setFeaturesSourceTab('home');
+    setActiveTab('all_features');
+  }, []);
+  const handleNavigateTab = useCallback((tab: string) => {
+    if (tab === 'all_features') {
+      setFeaturesSourceTab(activeTab);
+    }
+    setActiveTab(tab as ActiveTab);
+  }, [activeTab]);
   const handleLogoutAction = useCallback(() => {
     setActiveTab('home');
     if (typeof window !== 'undefined') {
@@ -937,7 +949,7 @@ export default function App() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white p-4">
+      <div className="min-h-screen bg-[var(--bg-app)] flex flex-col items-center justify-center text-white p-4">
         <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
         <p className="text-sm font-medium text-emerald-300">
           {language === 'bn' ? 'কেভ কম্প্যানিয়ন্স লোড হচ্ছে...' : 'Loading Cave Companions...'}
@@ -1042,11 +1054,12 @@ export default function App() {
           showInstallPrompt={showInstallPrompt}
           onInstallClick={handleInstallClick}
           onOpenTasbih={handleOpenTasbih}
+          onOpenAllFeatures={handleOpenAllFeatures}
         />
       )}
 
       {/* Main Content Area */}
-      <main className={`flex-1 w-full ${activeTab === 'cave_circle' || activeTab === 'notifications' ? 'max-w-4xl px-1 sm:px-2' : 'max-w-2xl px-1 sm:px-3'} mx-auto pb-5 ${activeTab === 'home' ? 'pt-1.5' : 'pt-2.5 sm:pt-4'}`}>
+      <main className={`flex-1 w-full ${activeTab === 'cave_circle' || activeTab === 'notifications' ? 'max-w-4xl px-1 sm:px-2' : activeTab === 'all_features' ? 'max-w-2xl px-1 sm:px-2' : 'max-w-2xl px-1 sm:px-3'} mx-auto pb-5 ${activeTab === 'home' ? 'pt-1.5' : 'pt-2.5 sm:pt-4'}`}>
         {/* Tab 1: HOME */}
         {activeTab === 'home' && (
           <div className="space-y-3 sm:space-y-3.5">
@@ -1149,7 +1162,7 @@ export default function App() {
             <AdBanner pageName="HOME" placementSlot="MIDDLE" />
 
             {/* Sahri and Iftar Timetable Card (Salafi Principles, GPS-based) */}
-            <SehriIftarCard userDistrict={user?.district} onShowToast={showToast} />
+            <SehriIftarCard userDistrict={user?.district} onShowToast={(type, title, msg) => showToast(type as any, title, msg)} />
 
             {/* Daily Nasiha Inspiration Card */}
             <DailyNasihaCard
@@ -1290,7 +1303,7 @@ export default function App() {
         {activeTab === 'all_features' && (
           <React.Suspense fallback={<ViewLoadingFallback />}>
             <AllFeaturesView
-              onBack={() => setActiveTab('profile')}
+              onBack={() => setActiveTab(featuresSourceTab || 'home')}
               onNavigateTab={(tab) => setActiveTab(tab as ActiveTab)}
               onOpenQibla={handleOpenQibla}
               onOpenTasbih={handleOpenTasbih}

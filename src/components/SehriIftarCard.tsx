@@ -14,7 +14,7 @@ import { formatLocationName } from '../data/bangladeshGeo';
 
 interface SehriIftarCardProps {
   userDistrict?: string;
-  onShowToast?: (type: string, title: string, message: string) => void;
+  onShowToast?: (type: 'success' | 'error' | 'info' | 'warning', title: string, message: string) => void;
 }
 
 const SehriIftarCountdown: React.FC<{ targetDate: Date; isFasting: boolean; language: string }> = React.memo(({ targetDate, isFasting, language }) => {

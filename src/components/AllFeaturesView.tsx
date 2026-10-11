@@ -162,10 +162,10 @@ export const AllFeaturesView: React.FC<AllFeaturesViewProps> = ({
   ], [isBn, onNavigateTab, onOpenQibla, onOpenTasbih, onOpenMosques]);
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-5 space-y-5 pb-28 text-slate-100 animate-fade-in">
+    <div className="w-full max-w-2xl mx-auto px-1 sm:px-2 py-3 sm:py-4 space-y-3.5 sm:space-y-4 pb-24 text-slate-100 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-2.5">
           {onBack && (
             <button
               type="button"
@@ -177,19 +177,19 @@ export const AllFeaturesView: React.FC<AllFeaturesViewProps> = ({
             </button>
           )}
           <div>
-            <h1 className="text-xl font-bold text-white flex items-center gap-2">
-              <Layers className="w-5 h-5 text-amber-400" />
+            <h1 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2 leading-tight">
+              <Layers className="w-5 h-5 text-amber-400 shrink-0" />
               <span>{isBn ? 'সকল ফিচার ও টুলস' : 'All Features & Tools'}</span>
             </h1>
-            <p className="text-xs text-emerald-300/80 font-medium">
+            <p className="text-[11px] sm:text-xs text-emerald-300/80 font-medium mt-0.5">
               {isBn ? 'আপনার পূর্ণাঙ্গ দ্বীনি লাইফস্টাইল ও ইবাদতের সহযোগী' : 'Your complete Islamic lifestyle & worship companion'}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Main Feature Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+      {/* Main Feature Grid: Compact 3 items per row */}
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5">
         {featureList.map((item) => {
           const Icon = item.icon;
 
@@ -198,17 +198,17 @@ export const AllFeaturesView: React.FC<AllFeaturesViewProps> = ({
               key={item.id}
               type="button"
               onClick={item.action}
-              className="flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl text-center transition-all cursor-pointer group active:scale-95 shadow-xs gap-2.5 bg-[#031d16] hover:bg-[#052b20] border border-[#0b4233] hover:border-amber-400/50"
+              className="flex flex-col items-center justify-center py-3 px-1 sm:py-4 sm:px-2 rounded-2xl text-center transition-all cursor-pointer group active:scale-95 shadow-xs gap-1.5 sm:gap-2 bg-[#031d16] hover:bg-[#052b20] border border-[#0b4233] hover:border-amber-400/50"
             >
               {/* Icon Wrapper */}
-              <div className="relative">
-                <div className="w-11 h-11 rounded-full flex items-center justify-center transition-transform group-hover:scale-110 shadow-inner bg-[#072c21] border border-[#0f543e] text-amber-400">
-                  <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-amber-400" />
+              <div className="relative shrink-0">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center transition-transform group-hover:scale-105 shadow-inner bg-[#072c21] border border-[#0f543e] text-amber-400">
+                  <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
                 </div>
               </div>
 
               {/* Title */}
-              <span className="text-xs sm:text-sm font-bold leading-tight line-clamp-1 text-slate-100 group-hover:text-amber-200">
+              <span className="text-[11px] sm:text-xs font-semibold leading-snug line-clamp-2 text-slate-100 group-hover:text-amber-200 px-0.5 min-h-[30px] flex items-center justify-center text-center">
                 {isBn ? item.nameBn : item.nameEn}
               </span>
             </button>

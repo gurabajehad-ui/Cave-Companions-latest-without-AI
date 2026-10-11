@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && node copy-assets.js",
+    "build": "vite build && node copy-assets.js && node build-server.js",
     "start": "node server.ts",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "postinstall": "node scripts/fix-adhan.cjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",

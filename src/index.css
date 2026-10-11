@@ -1,8 +1,19 @@
 @import "tailwindcss";
 
+:root,
+html,
+html.dark,
+body {
+  --bg-app: #060a14;
+  --text-app: #f8fafc;
+  color-scheme: dark;
+}
+
 @layer base {
   body {
-    @apply bg-slate-950 text-slate-100 min-h-screen;
+    background-color: var(--bg-app);
+    color: var(--text-app);
+    min-height: 100vh;
     font-family: 'Hind Siliguri', sans-serif;
   }
 }

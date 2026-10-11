@@ -306,7 +306,7 @@ const calculateAge = (dob: string | Date): number => {
 
 interface AdminDashboardViewProps {
   onBack?: () => void;
-  onShowToast: (type: 'success' | 'error' | 'info', title: string, msg: string) => void;
+  onShowToast: (type: 'success' | 'error' | 'info' | 'warning', title: string, msg: string) => void;
 }
 
 const QRInlinePreview = ({ identifier, size = 128 }: { identifier: string; size?: number }) => {
@@ -319,8 +319,8 @@ const QRInlinePreview = ({ identifier, size = 128 }: { identifier: string; size?
         margin: 1,
         color: { dark: '#0f172a', light: '#ffffff' }
       })
-        .then(u => setUrl(u))
-        .catch(err => console.error('Inline QR error:', err));
+        .then((u: string) => setUrl(u))
+        .catch((err: any) => console.error('Inline QR error:', err));
     }
   }, [identifier, size]);
 
@@ -708,8 +708,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
           light: '#ffffff'
         }
       })
-        .then(url => { if (isMounted) setQrDataUrl(url); })
-        .catch(err => console.error('QR code generation error:', err));
+        .then((url: string) => { if (isMounted) setQrDataUrl(url); })
+        .catch((err: any) => console.error('QR code generation error:', err));
     } else {
       setQrDataUrl('');
     }

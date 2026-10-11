@@ -21,6 +21,9 @@ export interface User {
   lastLoginAt: string;
 }
 
+export type UserProfile = User;
+export type ShopItem = any;
+
 export interface Mosque {
   id: string;
   name: string;

@@ -14,9 +14,17 @@ async function buildAndCopy() {
 
   if (fs.existsSync(serverEntry)) {
     try {
+      // Ensure adhan CJS package.json is properly configured
+      const adhanCjsDir = path.join(rootDir, 'node_modules', 'adhan', 'lib', 'cjs');
+      if (fs.existsSync(adhanCjsDir)) {
+        fs.writeFileSync(path.join(adhanCjsDir, 'package.json'), JSON.stringify({ type: 'commonjs' }, null, 2));
+      }
+
       const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
+      // Keep adhan bundled to prevent Node 22 ESM/CJS exports mismatch
+      const bundledDeps = ['adhan'];
       const externals = [
-        ...Object.keys(pkg.dependencies || {}),
+        ...Object.keys(pkg.dependencies || {}).filter(dep => !bundledDeps.includes(dep)),
         'sqlite3',
         'esbuild',
         'pg-native',
@@ -33,7 +41,6 @@ async function buildAndCopy() {
         bundle: true,
         platform: 'node',
         format: 'cjs',
-        packages: 'external',
         loader: {
           '.node': 'empty'
         },
