@@ -206,16 +206,25 @@ export const journeyDataService = {
 
     const availableTokens: any[] = myTokensData.availableTokens || myTokensData.available || [];
     const usedTokens: any[] = myTokensData.usedTokens || myTokensData.used || [];
+    const explicitDonatedTokens: any[] = myTokensData.donatedTokens || myTokensData.donated || [];
 
     // All tokens where user selected "Donate Token"
     const pledgedAvailable = availableTokens.filter(t => t.isDonated === true || t.is_donated === true);
-    const pledgedUsed = usedTokens.filter(t => t.isDonated === true || t.is_donated === true || (t.donatedAmount && Number(t.donatedAmount) > 0));
+    const allCompletedDonated = [
+      ...explicitDonatedTokens,
+      ...usedTokens.filter(t => t.isDonated === true || t.is_donated === true || (t.donatedAmount && Number(t.donatedAmount) > 0))
+    ];
+    // Deduplicate by ID
+    const pledgedUsed = allCompletedDonated.filter((t, idx, arr) => 
+      arr.findIndex(x => (x.id || x.tokenId) === (t.id || t.tokenId)) === idx
+    );
 
     const totalPledgedCount = pledgedAvailable.length + pledgedUsed.length;
     const realizedCount = pledgedUsed.length;
 
     let totalRealizedTk = 0;
     pledgedUsed.forEach(t => {
+      // Tokens have no fixed price: value is strictly the shop discount amount the customer waived at checkout!
       const amt = Number(t.donatedAmount || t.donated_amount || t.discountAmount || t.tokenDiscountAmount || 0);
       totalRealizedTk += amt > 0 ? amt : 0;
     });

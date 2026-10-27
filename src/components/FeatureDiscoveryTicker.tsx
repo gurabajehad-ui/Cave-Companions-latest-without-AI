@@ -125,14 +125,14 @@ export const FeatureDiscoveryTicker: React.FC<FeatureDiscoveryTickerProps> = ({
     >
       <div
         onClick={handleItemClick}
-        className="group relative overflow-hidden rounded-2xl bg-[#031d16] hover:bg-[#05291f] border border-[#0d4737] hover:border-amber-400/50 p-3 sm:p-3.5 shadow-md transition-all cursor-pointer flex items-center justify-between gap-3 text-white active:scale-[0.99]"
+        className="group relative overflow-hidden rounded-2xl sm:rounded-3xl bg-[#031d16] hover:bg-[#05291f] border border-[#0d4737] hover:border-amber-400/50 p-2.5 sm:p-3 shadow-sm transition-all cursor-pointer flex items-center justify-between gap-3 text-white active:scale-[0.99]"
       >
         {/* Left Accent Bar */}
         <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-amber-400 via-emerald-400 to-emerald-600" />
 
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           {/* Icon Badge */}
-          <div className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-xl bg-[#06291f] border border-[#0e4f3a] text-amber-300 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+          <div className="w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-xl bg-[#06291f] border border-[#0e4f3a] text-amber-300 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
             {activeItem.icon}
           </div>
 
@@ -163,7 +163,7 @@ export const FeatureDiscoveryTicker: React.FC<FeatureDiscoveryTickerProps> = ({
               e.stopPropagation();
               handleItemClick();
             }}
-            className="px-2.5 sm:px-3 py-1.5 rounded-full bg-[#053225] group-hover:bg-[#084232] border border-[#0f5c45] text-amber-300 group-hover:text-amber-200 text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
+            className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#053225] group-hover:bg-[#084232] border border-[#0f5c45] text-amber-300 group-hover:text-amber-200 text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shadow-xs active:scale-95"
           >
             <span>{language === 'bn' ? activeItem.actionBn : activeItem.actionEn}</span>
             <ChevronRight className="w-3.5 h-3.5 text-amber-300 group-hover:translate-x-0.5 transition-transform" />

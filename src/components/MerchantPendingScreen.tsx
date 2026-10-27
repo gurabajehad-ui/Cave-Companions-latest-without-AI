@@ -9,13 +9,15 @@ interface MerchantPendingScreenProps {
   verification: any;
   onRefresh: () => void;
   onLogout: () => void;
+  onExit?: () => void;
 }
 
 export const MerchantPendingScreen: React.FC<MerchantPendingScreenProps> = ({
   shop,
   verification,
   onRefresh,
-  onLogout
+  onLogout,
+  onExit
 }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -45,8 +47,9 @@ export const MerchantPendingScreen: React.FC<MerchantPendingScreenProps> = ({
           গুহা কমপ্যানিয়নস অ্যাডমিন টিম আপনার ব্যবসায়ী নথিপত্র এবং মার্চেন্ট চুক্তি পরীক্ষা করছেন। যাচাই সম্পূর্ণ হলে আপনার একাউন্ট ও কাস্টমার কিউআর রিডেম্পশন সেবা সক্রিয় হবে।
         </p>
 
-        <div className="flex items-center justify-center gap-3 mt-6">
+        <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
           <button
+            id="merchant-refresh-status-btn"
             onClick={handleRefresh}
             disabled={isRefreshing}
             className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-bold text-xs flex items-center gap-2 shadow-lg transition-all disabled:opacity-60 cursor-pointer"
@@ -55,7 +58,18 @@ export const MerchantPendingScreen: React.FC<MerchantPendingScreenProps> = ({
             স্ট্যাটাস রিফ্রেশ করুন
           </button>
 
+          {onExit && (
+            <button
+              id="merchant-back-to-app-btn"
+              onClick={onExit}
+              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center gap-2 transition-colors cursor-pointer border border-slate-700"
+            >
+              ← ইউজার অ্যাপে ফিরে যান
+            </button>
+          )}
+
           <button
+            id="merchant-logout-btn"
             onClick={onLogout}
             className="px-4 py-2.5 rounded-xl bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 font-semibold text-xs flex items-center gap-2 transition-colors cursor-pointer"
           >

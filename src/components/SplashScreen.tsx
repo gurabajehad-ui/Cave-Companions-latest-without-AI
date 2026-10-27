@@ -1,7 +1,5 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { QrCode, CheckCircle2, Award, Sparkles, ArrowRight, ShieldCheck } from 'lucide-react';
-import { AppLogo } from './AppLogo';
 import splashBg from '../assets/images/cave_splash_no_text_v2_1788014135103.jpg';
 
 interface SplashScreenProps {
@@ -34,15 +32,6 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onStart }) => {
           transition={{ duration: 1.2, ease: "easeOut" }}
           className="flex flex-col items-center"
         >
-          {/* Prominent Golden Cave Campfire Emblem */}
-          <motion.div 
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-black border-2 border-amber-500/50 shadow-2xl flex items-center justify-center p-2 mb-5 shadow-amber-500/20"
-          >
-            <AppLogo className="w-full h-full object-contain" />
-          </motion.div>
 
           <h1 
             className="text-4xl sm:text-5xl font-extrabold tracking-[0.2em] text-[#F3E5AB] drop-shadow-2xl uppercase"

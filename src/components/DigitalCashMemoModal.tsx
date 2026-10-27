@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   Sparkles,
   HeartHandshake,
+  Heart,
   Building2,
   Calendar,
   Phone,
@@ -350,12 +351,17 @@ export const DigitalCashMemoModal: React.FC<DigitalCashMemoModalProps> = ({
                         {redemption.shopAddress}
                       </p>
                     )}
-                    {redemption.earnedMosqueName && (
+                    {redemption.isDonated ? (
+                      <p className="text-rose-700 font-semibold text-[11px] flex items-center gap-1 pt-0.5">
+                        <Heart className="w-3 h-3 text-rose-600 shrink-0 fill-current" />
+                        {language === 'bn' ? 'তহবিল: কেন্দ্রীয় কল্যাণ তহবিল (Cave Companions)' : 'Fund: Central Welfare Fund'}
+                      </p>
+                    ) : redemption.earnedMosqueName ? (
                       <p className="text-emerald-700 font-semibold text-[11px] flex items-center gap-1 pt-0.5">
                         <Building2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                        {language === 'bn' ? 'মসজিদ:' : 'Mosque:'} {redemption.earnedMosqueName}
+                        {language === 'bn' ? 'অর্জিত জামাত:' : 'Earned Mosque:'} {redemption.earnedMosqueName}
                       </p>
-                    )}
+                    ) : null}
                   </>
                 ) : (
                   <>

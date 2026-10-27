@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShoppingBag, X, Check, Award, AlertCircle, ShoppingCart, ArrowRight } from 'lucide-react';
+import { ShoppingBag, X, Check, Award, AlertCircle, ShoppingCart, ArrowRight, Heart } from 'lucide-react';
 import { Product, UserToken } from '../types';
 import { api } from '../services/api';
 import { toBnNumber } from '../data/prayerConfig';
@@ -235,7 +235,7 @@ export const ProductBuyModal: React.FC<ProductBuyModalProps> = ({
                       </span>
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {/* No token option */}
                       <button
                         type="button"
@@ -262,83 +262,170 @@ export const ProductBuyModal: React.FC<ProductBuyModalProps> = ({
                         <span className="text-xs font-bold text-slate-700">৳{formatNum(originalPrice)}</span>
                       </button>
 
-                      {/* Available Tokens */}
-                      {tokens.map((token, idx) => {
-                        let tokenRate = 0;
-                        let tokenColor = 'amber';
-                        let tokenLabel = language === 'bn' ? 'গোল্ড টোকেন' : 'Gold Token';
+                      {/* SECTION 1: Normal Tokens */}
+                      {tokens.filter(t => !t.isDonated).length > 0 && (
+                        <div className="space-y-2 pt-1">
+                          <div className="flex items-center gap-1.5 px-1">
+                            <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                              <span>🏷️</span>
+                              <span>{language === 'bn' ? 'সাধারণ টোকেন (মূল্য ছাড় প্রযোজ্য)' : 'Regular Tokens (Discount Applies)'}</span>
+                            </span>
+                            <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded-full font-bold">
+                              {tokens.filter(t => !t.isDonated).length}
+                            </span>
+                          </div>
 
-                        if (token.tokenType === 'GOLD') {
-                          tokenRate = goldDiscount;
-                          tokenColor = 'amber';
-                          tokenLabel = language === 'bn' ? 'গোল্ড টোকেন' : 'Gold Token';
-                        } else if (token.tokenType === 'SILVER') {
-                          tokenRate = silverDiscount;
-                          tokenColor = 'slate';
-                          tokenLabel = language === 'bn' ? 'সিলভার টোকেন' : 'Silver Token';
-                        } else if (token.tokenType === 'BRONZE') {
-                          tokenRate = bronzeDiscount;
-                          tokenColor = 'orange';
-                          tokenLabel = language === 'bn' ? 'ব্রোঞ্জ টোকেন' : 'Bronze Token';
-                        }
+                          {tokens.filter(t => !t.isDonated).map((token, idx) => {
+                            let tokenRate = 0;
+                            let tokenColor = 'amber';
+                            let tokenLabel = language === 'bn' ? 'গোল্ড টোকেন' : 'Gold Token';
 
-                        const userDiscountRate = token.isDonated ? 0 : tokenRate;
-                        const calcUnitDiscount = (originalPrice * userDiscountRate) / 100;
-                        const calcFinalPrice = originalPrice - calcUnitDiscount;
-                        const isSelected = selectedTokenId === token.id;
+                            if (token.tokenType === 'GOLD') {
+                              tokenRate = goldDiscount;
+                              tokenColor = 'amber';
+                              tokenLabel = language === 'bn' ? 'গোল্ড টোকেন' : 'Gold Token';
+                            } else if (token.tokenType === 'SILVER') {
+                              tokenRate = silverDiscount;
+                              tokenColor = 'slate';
+                              tokenLabel = language === 'bn' ? 'সিলভার টোকেন' : 'Silver Token';
+                            } else if (token.tokenType === 'BRONZE') {
+                              tokenRate = bronzeDiscount;
+                              tokenColor = 'orange';
+                              tokenLabel = language === 'bn' ? 'ব্রোঞ্জ টোকেন' : 'Bronze Token';
+                            }
 
-                        return (
-                          <button
-                            key={`pbm-tok-${token.id || 'tok'}-${idx}`}
-                            type="button"
-                            onClick={() => setSelectedTokenId(token.id)}
-                            className={`w-full text-left p-3 rounded-xl border transition flex flex-col gap-2 cursor-pointer ${
-                              isSelected
-                                ? 'border-emerald-600 bg-emerald-50/50 ring-1 ring-emerald-600'
-                                : 'border-slate-200 hover:border-slate-300 bg-white'
-                            }`}
-                          >
-                            <div className="w-full flex items-center justify-between">
-                              <div className="flex items-center gap-2.5">
-                                <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'}`}>
-                                  {isSelected && <Check className="w-3 h-3 text-white" />}
-                                </div>
-                                <Award className={`w-5 h-5 ${tokenColor === 'amber' ? 'text-amber-500' : tokenColor === 'orange' ? 'text-orange-500' : 'text-slate-400'}`} />
-                                <div>
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="text-xs font-bold text-slate-900">{tokenLabel}</span>
-                                    <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[10px] font-extrabold rounded">
-                                      {formatNum(tokenRate)}% {language === 'bn' ? 'ছাড়' : 'Discount'}
-                                    </span>
-                                    {token.isDonated && (
-                                      <span className="px-1.5 py-0.2 bg-rose-100 text-rose-700 text-[9px] font-black rounded border border-rose-200 animate-pulse">
-                                        {language === 'bn' ? 'দান করার জন্য বাছাইকৃত' : 'Selected for Donation'}
-                                      </span>
-                                    )}
+                            const calcUnitDiscount = (originalPrice * tokenRate) / 100;
+                            const calcFinalPrice = originalPrice - calcUnitDiscount;
+                            const isSelected = selectedTokenId === token.id;
+
+                            return (
+                              <button
+                                key={`pbm-norm-${token.id || 'norm'}-${idx}`}
+                                type="button"
+                                onClick={() => setSelectedTokenId(token.id)}
+                                className={`w-full text-left p-3 rounded-xl border transition flex flex-col gap-1.5 cursor-pointer ${
+                                  isSelected
+                                    ? 'border-emerald-600 bg-emerald-50/50 ring-1 ring-emerald-600'
+                                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                                }`}
+                              >
+                                <div className="w-full flex items-center justify-between">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'}`}>
+                                      {isSelected && <Check className="w-3 h-3 text-white" />}
+                                    </div>
+                                    <Award className={`w-5 h-5 ${tokenColor === 'amber' ? 'text-amber-500' : tokenColor === 'orange' ? 'text-orange-500' : 'text-slate-400'}`} />
+                                    <div>
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-xs font-bold text-slate-900">{tokenLabel}</span>
+                                        <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[10px] font-extrabold rounded">
+                                          {formatNum(tokenRate)}% {language === 'bn' ? 'ছাড়' : 'Discount'}
+                                        </span>
+                                      </div>
+                                      <p className="text-[11px] text-emerald-700 font-medium">
+                                        {language === 'bn' ? `ছাড়: ৳${formatNum(calcUnitDiscount.toFixed(0))} / ইউনিট` : `Discount: ৳${formatNum(calcUnitDiscount.toFixed(0))} / unit`}
+                                      </p>
+                                    </div>
                                   </div>
-                                  <p className="text-[11px] text-emerald-700 font-medium">
-                                    {token.isDonated 
-                                      ? (language === 'bn' ? 'এই টোকেনের ডিসকাউন্টটি সরাসরি কল্যাণ তহবিলে দান হবে' : 'Discount will be donated to Welfare Fund') 
-                                      : (language === 'bn' ? `ছাড়: ৳${formatNum(calcUnitDiscount.toFixed(0))} / ইউনিট` : `Discount: ৳${formatNum(calcUnitDiscount.toFixed(0))} / unit`)
-                                    }
-                                  </p>
+                                  <div className="text-right">
+                                    <span className="text-xs font-extrabold text-emerald-700">৳{formatNum(calcFinalPrice.toFixed(0))}</span>
+                                    <span className="text-[10px] text-slate-400 line-through block">৳{formatNum(originalPrice)}</span>
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="text-right">
-                                <span className="text-xs font-extrabold text-emerald-700">৳{formatNum(calcFinalPrice.toFixed(0))}</span>
-                                <span className="text-[10px] text-slate-400 line-through block">৳{formatNum(originalPrice)}</span>
-                              </div>
-                            </div>
-                            {token.isDonated && (
-                              <div className="text-[10px] text-rose-600 font-bold pl-7 flex items-center gap-1 bg-rose-50/60 p-1.5 rounded-lg border border-rose-100/50">
-                                {language === 'bn' 
-                                  ? '❤️ এই টোকেনটি ব্যবহার করলে ডিসকাউন্ট সরাসরি কল্যাণ তহবিলে চলে যাবে (আপনি রেগুলার মূল্যে কিনবেন)।' 
-                                  : '❤️ Using this token will donate the discount directly to the Welfare Fund (you pay regular price).'}
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* SECTION 2: Donated Tokens */}
+                      {tokens.filter(t => t.isDonated).length > 0 && (
+                        <div className="space-y-2 pt-2 border-t border-slate-100">
+                          <div className="flex items-center justify-between px-1">
+                            <span className="text-xs font-bold text-rose-700 flex items-center gap-1">
+                              <Heart className="w-3.5 h-3.5 fill-current text-rose-500 animate-pulse" />
+                              <span>{language === 'bn' ? 'আপনার দানকৃত টোকেন (নির্ধারিত মূল্যে ক্রয়)' : 'Your Donated Tokens (No Discount)'}</span>
+                            </span>
+                            <span className="text-[10px] bg-rose-100 text-rose-700 px-1.5 py-0.2 rounded-full font-bold">
+                              {tokens.filter(t => t.isDonated).length}
+                            </span>
+                          </div>
+
+                          <div className="p-2.5 bg-rose-50/70 border border-rose-200/60 rounded-xl text-[11px] text-rose-900 leading-relaxed">
+                            {language === 'bn' 
+                              ? 'ℹ️ দানকৃত টোকেন সিলেক্ট করলে পণ্যতে কোনো মূল্য ছাড় পাবেন না। আপনাকে নির্ধারিত সম্পূর্ণ মূল্য পরিশোধ করতে হবে। ছাড়ের সমপরিমাণ অর্থ কেভ কম্প্যানিয়ন্স কল্যাণ তহবিলে দান হবে এবং আপনার কেভ জার্নিতে যোগ হবে।'
+                              : 'ℹ️ Selecting a donated token gives no discount to you. You pay full price. The waived discount amount is donated to the Welfare Fund by Cave Companions and recorded in your Cave Journey.'}
+                          </div>
+
+                          {tokens.filter(t => t.isDonated).map((token, idx) => {
+                            let normalRate = 0;
+                            let tokenColor = 'amber';
+                            let tokenLabel = language === 'bn' ? 'গোল্ড টোকেন' : 'Gold Token';
+
+                            if (token.tokenType === 'GOLD') {
+                              normalRate = goldDiscount;
+                              tokenColor = 'amber';
+                              tokenLabel = language === 'bn' ? 'গোল্ড টোকেন' : 'Gold Token';
+                            } else if (token.tokenType === 'SILVER') {
+                              normalRate = silverDiscount;
+                              tokenColor = 'slate';
+                              tokenLabel = language === 'bn' ? 'সিলভার টোকেন' : 'Silver Token';
+                            } else if (token.tokenType === 'BRONZE') {
+                              normalRate = bronzeDiscount;
+                              tokenColor = 'orange';
+                              tokenLabel = language === 'bn' ? 'ব্রোঞ্জ টোকেন' : 'Bronze Token';
+                            }
+
+                            const calcUnitDonation = (originalPrice * normalRate) / 100;
+                            const isSelected = selectedTokenId === token.id;
+
+                            return (
+                              <button
+                                key={`pbm-don-${token.id || 'don'}-${idx}`}
+                                type="button"
+                                onClick={() => setSelectedTokenId(token.id)}
+                                className={`w-full text-left p-3 rounded-xl border transition flex flex-col gap-2 cursor-pointer ${
+                                  isSelected
+                                    ? 'border-rose-500 bg-rose-50/40 ring-1 ring-rose-500'
+                                    : 'border-rose-200/80 hover:border-rose-300 bg-white'
+                                }`}
+                              >
+                                <div className="w-full flex items-center justify-between">
+                                  <div className="flex items-center gap-2.5">
+                                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'border-rose-600 bg-rose-600' : 'border-rose-300'}`}>
+                                      {isSelected && <Check className="w-3 h-3 text-white" />}
+                                    </div>
+                                    <Award className={`w-5 h-5 ${tokenColor === 'amber' ? 'text-amber-500' : tokenColor === 'orange' ? 'text-orange-500' : 'text-slate-400'}`} />
+                                    <div>
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-xs font-bold text-slate-900">{tokenLabel}</span>
+                                        <span className="px-1.5 py-0.2 bg-rose-600 text-white text-[9px] font-black rounded flex items-center gap-0.5">
+                                          <Heart className="w-2.5 h-2.5 fill-current" />
+                                          {language === 'bn' ? 'দানকৃত টোকেন' : 'Donated Token'}
+                                        </span>
+                                      </div>
+                                      <p className="text-[11px] text-rose-700 font-bold mt-0.5">
+                                        {language === 'bn' ? `কোনো ছাড় নেই • পূর্ণ মূল্য: ৳${formatNum(originalPrice)}` : `No discount • Full Price: ৳${formatNum(originalPrice)}`}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="text-xs font-extrabold text-slate-900 block">৳{formatNum(originalPrice)}</span>
+                                    <span className="text-[10px] text-rose-600 font-bold block">
+                                      +৳{formatNum(calcUnitDonation.toFixed(0))} {language === 'bn' ? 'দান হবে ❤️' : 'Donation ❤️'}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="text-[10px] text-rose-800 bg-rose-100/60 rounded-lg px-2.5 py-1.5 border border-rose-200/60">
+                                  {language === 'bn' 
+                                    ? `❤️ আপনি পণ্যটি পূর্ণ মূল্যে কিনবেন। আপনার প্রাপ্য ${formatNum(normalRate)}% (৳${formatNum(calcUnitDonation.toFixed(0))}) ছাড়ের সমপরিমাণ অর্থ কল্যাণ তহবিলে জমা হবে।`
+                                    : `❤️ You purchase at full price. The waived ${formatNum(normalRate)}% (৳${formatNum(calcUnitDonation.toFixed(0))}) discount is donated to the Welfare Fund.`}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -385,9 +472,16 @@ export const ProductBuyModal: React.FC<ProductBuyModalProps> = ({
                     </div>
                   )}
                   <div className="border-t border-slate-800 pt-1.5 flex justify-between text-sm font-bold text-white">
-                    <span>{language === 'bn' ? 'প্রদেয় পণ্যের মূল্য:' : 'Payable Product Price:'}</span>
-                    <span className="text-emerald-400 font-extrabold">৳{formatNum(Number(totalPayable || 0).toLocaleString(language === 'bn' ? 'bn-BD' : 'en-US'))}</span>
+                    <span>{language === 'bn' ? (totalDonationAmount > 0 ? 'প্রদেয় মূল্য (নির্ধারিত পূর্ণ মূল্য):' : 'প্রদেয় পণ্যের মূল্য:') : (totalDonationAmount > 0 ? 'Payable Price (Full Regular):' : 'Payable Product Price:')}</span>
+                    <span className={totalDonationAmount > 0 ? 'text-white font-black' : 'text-emerald-400 font-extrabold'}>৳{formatNum(Number(totalPayable || 0).toLocaleString(language === 'bn' ? 'bn-BD' : 'en-US'))}</span>
                   </div>
+                  {totalDonationAmount > 0 && (
+                    <div className="p-2 rounded-lg bg-rose-950/80 border border-rose-800/80 text-[11px] text-rose-200">
+                      {language === 'bn' 
+                        ? '❤️ টোকেনটি দানকৃত হওয়ায় আপনি কোনো মূল্য ছাড় পাচ্ছেন না এবং সম্পূর্ণ নির্ধারিত মূল্যে কিনছেন। আপনার প্রাপ্য ছাড়ের অর্থ কেভ কম্প্যানিয়ন্স কল্যাণ তহবিলে দান হিসেবে জমা হবে।' 
+                        : '❤️ As this token is donated, no discount applies and you purchase at full price. The waived discount will be donated to the Welfare Fund by Cave Companions.'}
+                    </div>
+                  )}
                   <p className="text-[10px] text-slate-400 pt-1">
                     {language === 'bn' 
                       ? `* চেকআউট করার সময় স্ট্যান্ডার্ড ডেলিভারি চার্জ (৳${formatNum(60)}) যোগ হবে।` 

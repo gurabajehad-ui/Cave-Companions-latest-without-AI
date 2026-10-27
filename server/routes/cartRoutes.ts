@@ -139,6 +139,34 @@ cartRoutes.patch('/items/:itemId/weight', async (req: AuthRequest, res: Response
 });
 
 /**
+ * PATCH /api/cart/items/:itemId/token
+ * Update token for a cart line item.
+ * Body: { tokenId: string | null }
+ */
+cartRoutes.patch('/items/:itemId/token', async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { itemId } = req.params;
+    const { tokenId } = req.body;
+
+    await db.updateCartItemToken(userId, itemId, tokenId || null);
+    const summary = await db.getCartSummary(userId);
+
+    res.json({
+      success: true,
+      message: tokenId ? 'টোকেন সফলভাবে সংযুক্ত করা হয়েছে।' : 'টোকেন সরিয়ে নেওয়া হয়েছে।',
+      cart: summary
+    });
+  } catch (err: any) {
+    console.error('Error updating cart item token:', err);
+    res.status(400).json({
+      success: false,
+      message: err.message || 'টোকেন পরিবর্তন করতে সমস্যা হয়েছে।'
+    });
+  }
+});
+
+/**
  * DELETE /api/cart/items/:itemId
  * Remove a specific item from cart.
  */

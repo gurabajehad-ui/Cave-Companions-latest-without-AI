@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShoppingCart, X, Trash2, Plus, Minus, CheckCircle, Truck, AlertCircle, ShoppingBag, ArrowRight, Heart, MapPin } from 'lucide-react';
-import { CartSummary, Order, User } from '../types';
+import { ShoppingCart, X, Trash2, Plus, Minus, CheckCircle, Truck, AlertCircle, ShoppingBag, ArrowRight, Heart, MapPin, Coins, Check, Award } from 'lucide-react';
+import { CartSummary, Order, User, UserToken } from '../types';
 import { api } from '../services/api';
 import { BANGLADESH_DISTRICTS } from '../data/bangladeshGeo';
 import { useLanguage } from '../context/LanguageContext';
@@ -109,6 +109,26 @@ export const CartModal: React.FC<CartModalProps> = ({
   const [nearbyRiderAvailable, setNearbyRiderAvailable] = useState<boolean | null>(null);
   const [activeRidersCount, setActiveRidersCount] = useState<number>(0);
   const [riderBusyMessage, setRiderBusyMessage] = useState<string | null>(null);
+
+  // Available reward tokens for checkout
+  const [userTokens, setUserTokens] = useState<UserToken[]>([]);
+  const [tokenSelectorItem, setTokenSelectorItem] = useState<any | null>(null);
+  const [isUpdatingToken, setIsUpdatingToken] = useState(false);
+
+  const handleSelectTokenForItem = async (itemId: string, tokenId: string | null) => {
+    setIsUpdatingToken(true);
+    try {
+      const res = await api.updateCartItemToken(itemId, tokenId);
+      if (res && res.cart) {
+        setCart(res.cart);
+      }
+      setTokenSelectorItem(null);
+    } catch (err: any) {
+      alert(err.message || (language === 'bn' ? 'টোকেন পরিবর্তন করতে ব্যর্থ হয়েছে।' : 'Failed to update token.'));
+    } finally {
+      setIsUpdatingToken(false);
+    }
+  };
 
   // 1. Check Courier eligibility (shops must be in Dhaka district):
   // "কুরিয়ার সিস্টেম কাজ করবে যদি শপগুলো ঢাকা জেলার অন্তর্ভুক্ত হয়"
@@ -234,10 +254,11 @@ export const CartModal: React.FC<CartModalProps> = ({
       const loadInitialData = async () => {
         setLoading(true);
         try {
-          const [cartRes, chargesRes, distRes] = await Promise.allSettled([
+          const [cartRes, chargesRes, distRes, tokensRes] = await Promise.allSettled([
             api.getCart(),
             api.getDeliveryChargesConfig(),
-            api.getBangladeshDistricts()
+            api.getBangladeshDistricts(),
+            api.getMyTokens()
           ]);
 
           if (isCancelled) return;
@@ -263,6 +284,10 @@ export const CartModal: React.FC<CartModalProps> = ({
 
           if (distRes.status === 'fulfilled' && distRes.value?.success && distRes.value.districts && distRes.value.districts.length > 0) {
             setDistrictsList(distRes.value.districts);
+          }
+
+          if (tokensRes.status === 'fulfilled' && tokensRes.value?.success && tokensRes.value.availableTokens) {
+            setUserTokens(tokensRes.value.availableTokens);
           }
         } catch (err: any) {
           if (isCancelled) return;
@@ -708,8 +733,8 @@ export const CartModal: React.FC<CartModalProps> = ({
                                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-500/10 text-rose-600 text-[10px] font-extrabold rounded border border-rose-500/20">
                                         <Heart className="w-3 h-3 fill-current text-rose-500 animate-pulse" />
                                         {language === 'bn' 
-                                          ? `মসজিদে দান (${item.normalDiscountPercent}% সমপরিমাণ)` 
-                                          : `Mosque Donation (${item.normalDiscountPercent}%)`}
+                                          ? `দানকৃত টোকেন (নির্ধারিত মূল্যে ক্রয় • ${item.normalDiscountPercent}% অর্থ দান হবে)` 
+                                          : `Donated Token (Full Price • ${item.normalDiscountPercent}% Donated)`}
                                       </span>
                                     </div>
                                   ) : (
@@ -726,6 +751,16 @@ export const CartModal: React.FC<CartModalProps> = ({
                                     {language === 'bn' ? 'রেগুলার মূল্য' : 'Regular Price'}
                                   </span>
                                 )}
+
+                                {/* Token Change / Apply Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => setTokenSelectorItem(item)}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold border border-slate-300 transition cursor-pointer"
+                                >
+                                  <Coins className="w-2.5 h-2.5 text-amber-500" />
+                                  <span>{item.tokenId ? (language === 'bn' ? 'টোকেন পরিবর্তন' : 'Change Token') : (language === 'bn' ? 'টোকেন নির্বাচন' : 'Apply Token')}</span>
+                                </button>
 
                                 {/* Product Weight (Pre-set by Merchant) */}
                                 <div className="inline-flex items-center gap-1 bg-amber-50/90 border border-amber-200/90 rounded px-2 py-0.5 text-[10px] text-amber-900 font-bold">
@@ -1298,9 +1333,16 @@ export const CartModal: React.FC<CartModalProps> = ({
                           </div>
                         )}
                         {tokenDonation > 0 && (
-                          <div className="flex justify-between text-rose-400 font-semibold">
-                            <span>{language === 'bn' ? 'কল্যাণ তহবিলে দানকৃত (মসজিদ):' : 'Donated to Mosque Fund:'}</span>
-                            <span>৳{language === 'bn' ? tokenDonation.toLocaleString('bn-BD') : tokenDonation.toLocaleString()} ❤️</span>
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between text-rose-400 font-semibold">
+                              <span>{language === 'bn' ? 'কেন্দ্রীয় কল্যাণ তহবিলে দান (Cave Companions):' : 'Donated to Central Welfare Fund:'}</span>
+                              <span>৳{language === 'bn' ? tokenDonation.toLocaleString('bn-BD') : tokenDonation.toLocaleString()} ❤️</span>
+                            </div>
+                            <div className="p-2 rounded-lg bg-rose-950/80 border border-rose-800/80 text-[11px] text-rose-200 leading-relaxed">
+                              {language === 'bn' 
+                                ? '❤️ দানকৃত টোকেন ব্যবহারের কারণে আপনি পণ্যের কোনো ছাড় পাননি এবং সম্পূর্ণ নির্ধারিত মূল্যে কিনছেন। আপনার প্রাপ্য ছাড়ের সমপরিমাণ অর্থ কেভ কম্প্যানিয়ন্স থেকে কেন্দ্রীয় কল্যাণ তহবিলে দান হবে এবং আপনার কেভ জার্নিতে যোগ হবে।'
+                                : '❤️ Because you selected a donated token, you receive no discount and pay full regular price. The waived discount amount is donated to the Central Welfare Fund and added to your Cave Journey.'}
+                            </div>
                           </div>
                         )}
                         {appliedCoupon && actualCouponDiscount > 0 && (
@@ -1510,6 +1552,168 @@ export const CartModal: React.FC<CartModalProps> = ({
           </div>
         </motion.div>
       </div>
+
+      {/* Token Selector Modal for Cart Item */}
+      {tokenSelectorItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[85vh]"
+          >
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50">
+              <div className="flex items-center gap-2">
+                <Coins className="w-5 h-5 text-amber-500" />
+                <h4 className="text-sm font-bold text-slate-900 truncate">
+                  {language === 'bn' ? 'টোকেন নির্বাচন করুন' : 'Select Token'}
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTokenSelectorItem(null)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto space-y-3">
+              <p className="text-xs text-slate-600 font-medium">
+                {language === 'bn' 
+                  ? `পণ্য: ${tokenSelectorItem.productName}` 
+                  : `Item: ${tokenSelectorItem.productName}`}
+              </p>
+
+              {/* No token option */}
+              <button
+                type="button"
+                disabled={isUpdatingToken}
+                onClick={() => handleSelectTokenForItem(tokenSelectorItem.id, null)}
+                className={`w-full text-left p-3 rounded-xl border transition flex items-center justify-between cursor-pointer ${
+                  !tokenSelectorItem.tokenId
+                    ? 'border-emerald-600 bg-emerald-50/50 ring-1 ring-emerald-600'
+                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${!tokenSelectorItem.tokenId ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'}`}>
+                    {!tokenSelectorItem.tokenId && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-800">
+                      {language === 'bn' ? 'কোনো টোকেন ব্যবহার করব না' : 'Do not use any token'}
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      {language === 'bn' ? 'রেগুলার মূল্য প্রযোজ্য হবে' : 'Regular price will apply'}
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              {/* Normal Tokens */}
+              {userTokens.filter(t => !t.isDonated).length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-xs font-bold text-slate-700 block">
+                    🏷️ {language === 'bn' ? 'সাধারণ টোকেন (মূল্য ছাড় প্রযোজ্য)' : 'Regular Tokens (Discount Applies)'}
+                  </span>
+                  {userTokens.filter(t => !t.isDonated).map((token) => {
+                    const isSelected = tokenSelectorItem.tokenId === token.id;
+                    return (
+                      <button
+                        key={`c-tok-${token.id}`}
+                        type="button"
+                        disabled={isUpdatingToken}
+                        onClick={() => handleSelectTokenForItem(tokenSelectorItem.id, token.id)}
+                        className={`w-full text-left p-2.5 rounded-xl border transition flex items-center justify-between cursor-pointer ${
+                          isSelected
+                            ? 'border-emerald-600 bg-emerald-50/60 ring-1 ring-emerald-600'
+                            : 'border-slate-200 hover:border-slate-300 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Award className="w-4 h-4 text-amber-500" />
+                          <div>
+                            <span className="text-xs font-bold text-slate-900 block">
+                              {token.tokenType === 'GOLD' ? (language === 'bn' ? 'গোল্ড টোকেন' : 'Gold Token') : token.tokenType === 'SILVER' ? (language === 'bn' ? 'সিলভার টোকেন' : 'Silver Token') : (language === 'bn' ? 'ব্রোঞ্জ টোকেন' : 'Bronze Token')}
+                            </span>
+                            <span className="text-[10px] text-slate-500">
+                              ID: {token.id} • {token.earnedDate}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-bold text-emerald-700">
+                            {language === 'bn' ? 'ছাড় প্রযোজ্য' : 'Discount Applies'}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Donated Tokens */}
+              {userTokens.filter(t => t.isDonated).length > 0 && (
+                <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                  <div className="flex items-center gap-1.5">
+                    <Heart className="w-3.5 h-3.5 fill-current text-rose-500 animate-pulse" />
+                    <span className="text-xs font-bold text-rose-700">
+                      {language === 'bn' ? 'আপনার দানকৃত টোকেন (নির্ধারিত মূল্যে ক্রয়)' : 'Donated Tokens (No Discount)'}
+                    </span>
+                  </div>
+
+                  <div className="p-2 bg-rose-50 border border-rose-200/60 rounded-lg text-[11px] text-rose-900 leading-relaxed">
+                    {language === 'bn' 
+                      ? 'টোকেনটি দানকৃত হওয়ায় আপনি কোনো মূল্য ছাড় পাবেন না। আপনাকে পণ্যটি সম্পূর্ণ নির্ধারিত মূল্যে কিনতে হবে। প্রাপ্য ছাড়ের সমপরিমাণ অর্থ কেভ কম্প্যানিয়ন্স থেকে কল্যাণ তহবিলে দান হবে এবং আপনার কেভ জার্নিতে যোগ হবে।'
+                      : 'You pay full regular price. The waived discount amount is donated to the Central Welfare Fund and recorded in your Cave Journey.'}
+                  </div>
+
+                  {userTokens.filter(t => t.isDonated).map((token) => {
+                    const isSelected = tokenSelectorItem.tokenId === token.id;
+                    return (
+                      <button
+                        key={`c-don-${token.id}`}
+                        type="button"
+                        disabled={isUpdatingToken}
+                        onClick={() => handleSelectTokenForItem(tokenSelectorItem.id, token.id)}
+                        className={`w-full text-left p-2.5 rounded-xl border transition flex items-center justify-between cursor-pointer ${
+                          isSelected
+                            ? 'border-rose-500 bg-rose-50/60 ring-1 ring-rose-500'
+                            : 'border-rose-200/80 hover:border-rose-300 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Award className="w-4 h-4 text-amber-500" />
+                          <div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs font-bold text-slate-900">
+                                {token.tokenType === 'GOLD' ? (language === 'bn' ? 'গোল্ড টোকেন' : 'Gold Token') : token.tokenType === 'SILVER' ? (language === 'bn' ? 'সিলভার টোকেন' : 'Silver Token') : (language === 'bn' ? 'ব্রোঞ্জ টোকেন' : 'Bronze Token')}
+                              </span>
+                              <span className="px-1.5 py-0.2 bg-rose-600 text-white text-[9px] font-black rounded flex items-center gap-0.5">
+                                <Heart className="w-2 h-2 fill-current" />
+                                {language === 'bn' ? 'দানকৃত' : 'Donated'}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-rose-700 font-bold block mt-0.5">
+                              {language === 'bn' ? 'কোনো ছাড় নেই • পূর্ণ মূল্যে ক্রয়' : 'No discount • Full Price'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-black text-rose-600">
+                            {language === 'bn' ? 'দান হবে ❤️' : 'Donation ❤️'}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       <LocationSelectorModal
         isOpen={showMapModal}

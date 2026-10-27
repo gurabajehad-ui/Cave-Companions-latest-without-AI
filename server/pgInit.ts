@@ -1,9 +1,15 @@
-import { pool, useSqliteFallback } from './pg.js';
+import { pool, getClient } from './pg.js';
 import fs from 'fs';
 import path from 'path';
 
 export async function initPostgresSchema() {
-  const client = await pool.connect();
+  let client: any;
+  try {
+    client = await getClient();
+  } catch (err: any) {
+    console.warn('[PostgreSQL Init] Database connection unavailable, skipping remote DDL migration:', err?.message || err);
+    return;
+  }
   try {
     await client.query('BEGIN');
 
@@ -889,6 +895,14 @@ export async function initPostgresSchema() {
 
     await client.query('COMMIT');
     
+    await client.query(`
+        CREATE TABLE IF NOT EXISTS notification_subscriptions (
+          user_id VARCHAR(255) PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          subscription JSONB NOT NULL,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+      `);
+      
       // =====================================
       // Advertisement System Tables
       // =====================================
@@ -1144,6 +1158,16 @@ export async function initPostgresSchema() {
         CREATE INDEX IF NOT EXISTS idx_circle_active_calls_target ON circle_active_calls(target_user_id, status);
         CREATE INDEX IF NOT EXISTS idx_circle_active_calls_circle ON circle_active_calls(circle_id, status);
 
+        CREATE TABLE IF NOT EXISTS circle_call_signals (
+            id SERIAL PRIMARY KEY,
+            call_id VARCHAR(255) NOT NULL REFERENCES circle_active_calls(id) ON DELETE CASCADE,
+            sender_id VARCHAR(255) NOT NULL,
+            signal_type VARCHAR(50) NOT NULL,
+            payload TEXT NOT NULL,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_circle_call_signals_call ON circle_call_signals(call_id, created_at);
+
         -- Cave Circle Moderation Tables
         ALTER TABLE circle_messages ADD COLUMN IF NOT EXISTS moderation_status VARCHAR(50) DEFAULT 'APPROVED';
         ALTER TABLE circle_messages ADD COLUMN IF NOT EXISTS moderation_reason TEXT;
@@ -1313,13 +1337,32 @@ export async function initPostgresSchema() {
           UPDATE redemptions SET commission_payment_status = 'unpaid' WHERE commission_payment_status IS NULL;
           UPDATE redemptions SET merchant_history_deleted = FALSE WHERE merchant_history_deleted IS NULL;
         `);
-      } catch (err) {
-        console.error('[Migration:BackfillCommissionPayment] Error:', err);
+      } catch (err: any) {
+        console.warn('[PostgreSQL] Non-fatal error during commission status backfill:', err.message);
       }
 
-      // Backfill missing donation info and mosque names for existing records (PostgreSQL only)
-      if (!useSqliteFallback) {
-        try {
+      // Reset dummy instant donations back to AVAILABLE donated tokens so they can be spent at checkout
+      try {
+        await client.query(`
+          DELETE FROM redemptions 
+          WHERE (shop_id = 'MSQ-WELFARE' OR earned_mosque_id = 'MSQ-WELFARE') 
+            AND discount_percent = 0 
+            AND bill_amount IN (50, 100, 150)
+            AND id NOT IN (SELECT redemption_id FROM token_redemption_requests WHERE redemption_id IS NOT NULL);
+
+          UPDATE tokens
+          SET status = 'AVAILABLE', redemption_ref = NULL
+          WHERE is_donated = TRUE 
+            AND status = 'USED' 
+            AND (redemption_ref IS NULL OR redemption_ref NOT IN (SELECT id FROM redemptions))
+            AND (redemption_ref IS NULL OR redemption_ref NOT LIKE 'ORD-%');
+        `);
+      } catch (err) {
+        console.error('[Migration:ResetPledgedTokens] Error:', err);
+      }
+
+      // Backfill missing donation info and mosque names for existing records
+      try {
           await client.query(`
             UPDATE redemptions r
             SET 
@@ -1366,9 +1409,8 @@ export async function initPostgresSchema() {
             ) pa
             WHERE t.user_id = pa.user_id AND (t.earned_mosque_name IS NULL OR t.earned_mosque_name = '');
           `);
-        } catch (backfillErr) {
+      } catch (backfillErr) {
           console.warn('[PostgreSQL] Optional backfill warning (ignored):', backfillErr);
-        }
       }
 
     await client.query('COMMIT');

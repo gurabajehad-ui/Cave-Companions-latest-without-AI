@@ -27,7 +27,7 @@ export const DailyNasihaCard: React.FC<DailyNasihaCardProps> = React.memo(({
   return (
     <div 
       style={{ contain: 'layout style', transform: 'translateZ(0)' }}
-      className="rounded-2xl border border-[#0c4334] bg-[#022119] p-3.5 shadow-sm text-white"
+      className="w-full rounded-2xl sm:rounded-3xl border border-[#0c4334] bg-[#022119] p-3.5 sm:p-4 shadow-sm text-white"
     >
       <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300 mb-1.5">
         <BookOpen className="w-3.5 h-3.5 text-amber-400 shrink-0" />

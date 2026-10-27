@@ -22,7 +22,8 @@ import {
   Calendar,
   Layers,
   Sparkles,
-  AlertTriangle
+  AlertTriangle,
+  ShieldAlert
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -51,6 +52,7 @@ interface AdminOverviewTabProps {
     pendingAdmins: number;
     pendingOffers: number;
     openTickets: number;
+    pendingModerationReports?: number;
   };
   recentOrders?: any[];
   onNavigateTab: (tab: string, subTab?: string) => void;
@@ -491,6 +493,20 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
               </div>
               <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-amber-400 transition-colors" />
             </button>
+
+            {/* 7. Circle Moderation */}
+            <button
+              onClick={() => onNavigateTab('circle-moderation')}
+              className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-950/70 hover:bg-slate-800/90 border border-slate-800/80 text-left transition-all group cursor-pointer"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
+                  <ShieldAlert className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-200 group-hover:text-white">সার্কেল মডারেশন ও রিপোর্ট</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-rose-400 transition-colors" />
+            </button>
           </div>
         </div>
       </div>
@@ -513,72 +529,89 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
             </button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             {/* Pending 1: Products */}
             <div 
               onClick={() => onNavigateTab('product-approvals')}
-              className="p-4 rounded-xl bg-slate-950/60 border border-amber-500/30 hover:border-amber-500/60 transition-all cursor-pointer group"
+              className="p-3.5 rounded-xl bg-slate-950/60 border border-amber-500/30 hover:border-amber-500/60 transition-all cursor-pointer group"
             >
-              <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-400 flex items-center justify-center mb-2.5">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-400 flex items-center justify-center mb-2">
                 <Box className="w-4 h-4" />
               </div>
-              <span className="text-xs font-semibold text-slate-300 block">পণ্য অনুমোদন</span>
-              <div className="flex items-baseline gap-1.5 mt-1">
-                <span className="text-xl font-black text-white font-mono">
+              <span className="text-[11px] font-semibold text-slate-300 block truncate">পণ্য অনুমোদন</span>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-lg font-black text-white font-mono">
                   {pendingCounts.pendingProducts || 8}
                 </span>
-                <span className="text-[11px] text-amber-400 font-medium">পেন্ডিং</span>
+                <span className="text-[10px] text-amber-400 font-medium">পেন্ডিং</span>
               </div>
             </div>
 
             {/* Pending 2: Shops */}
             <div 
               onClick={() => onNavigateTab('shops')}
-              className="p-4 rounded-xl bg-slate-950/60 border border-emerald-500/30 hover:border-emerald-500/60 transition-all cursor-pointer group"
+              className="p-3.5 rounded-xl bg-slate-950/60 border border-emerald-500/30 hover:border-emerald-500/60 transition-all cursor-pointer group"
             >
-              <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center mb-2.5">
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center mb-2">
                 <Store className="w-4 h-4" />
               </div>
-              <span className="text-xs font-semibold text-slate-300 block">দোকান অনুমোদন</span>
-              <div className="flex items-baseline gap-1.5 mt-1">
-                <span className="text-xl font-black text-white font-mono">
+              <span className="text-[11px] font-semibold text-slate-300 block truncate">দোকান অনুমোদন</span>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-lg font-black text-white font-mono">
                   {pendingCounts.pendingShops || 5}
                 </span>
-                <span className="text-[11px] text-emerald-400 font-medium">পেন্ডিং</span>
+                <span className="text-[10px] text-emerald-400 font-medium">পেন্ডিং</span>
               </div>
             </div>
 
             {/* Pending 3: Riders */}
             <div 
               onClick={() => onNavigateTab('riders')}
-              className="p-4 rounded-xl bg-slate-950/60 border border-teal-500/30 hover:border-teal-500/60 transition-all cursor-pointer group"
+              className="p-3.5 rounded-xl bg-slate-950/60 border border-teal-500/30 hover:border-teal-500/60 transition-all cursor-pointer group"
             >
-              <div className="w-8 h-8 rounded-lg bg-teal-500/15 text-teal-400 flex items-center justify-center mb-2.5">
+              <div className="w-8 h-8 rounded-lg bg-teal-500/15 text-teal-400 flex items-center justify-center mb-2">
                 <Bike className="w-4 h-4" />
               </div>
-              <span className="text-xs font-semibold text-slate-300 block">রাইডার অনুমোদন</span>
-              <div className="flex items-baseline gap-1.5 mt-1">
-                <span className="text-xl font-black text-white font-mono">
+              <span className="text-[11px] font-semibold text-slate-300 block truncate">রাইডার অনুমোদন</span>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-lg font-black text-white font-mono">
                   {pendingCounts.pendingRiders || 3}
                 </span>
-                <span className="text-[11px] text-teal-400 font-medium">পেন্ডিং</span>
+                <span className="text-[10px] text-teal-400 font-medium">পেন্ডিং</span>
               </div>
             </div>
 
             {/* Pending 4: Admins */}
             <div 
               onClick={() => onNavigateTab('admin-management')}
-              className="p-4 rounded-xl bg-slate-950/60 border border-purple-500/30 hover:border-purple-500/60 transition-all cursor-pointer group"
+              className="p-3.5 rounded-xl bg-slate-950/60 border border-purple-500/30 hover:border-purple-500/60 transition-all cursor-pointer group"
             >
-              <div className="w-8 h-8 rounded-lg bg-purple-500/15 text-purple-400 flex items-center justify-center mb-2.5">
+              <div className="w-8 h-8 rounded-lg bg-purple-500/15 text-purple-400 flex items-center justify-center mb-2">
                 <Shield className="w-4 h-4" />
               </div>
-              <span className="text-xs font-semibold text-slate-300 block">অ্যাডমিন অ্যাকাউন্ট</span>
-              <div className="flex items-baseline gap-1.5 mt-1">
-                <span className="text-xl font-black text-white font-mono">
+              <span className="text-[11px] font-semibold text-slate-300 block truncate">অ্যাডমিন অ্যাকাউন্ট</span>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-lg font-black text-white font-mono">
                   {pendingCounts.pendingAdmins || 2}
                 </span>
-                <span className="text-[11px] text-purple-400 font-medium">পেন্ডিং</span>
+                <span className="text-[10px] text-purple-400 font-medium">পেন্ডিং</span>
+              </div>
+            </div>
+
+            {/* Pending 5: Circle Reports */}
+            <div 
+              onClick={() => onNavigateTab('circle-moderation')}
+              className="p-3.5 rounded-xl bg-slate-950/60 border border-rose-500/30 hover:border-rose-500/60 transition-all cursor-pointer group"
+            >
+              <div className="w-8 h-8 rounded-lg bg-rose-500/15 text-rose-400 flex items-center justify-center mb-2">
+                <ShieldAlert className="w-4 h-4" />
+              </div>
+              <span className="text-[11px] font-semibold text-slate-300 block truncate">সার্কেল রিপোর্ট</span>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-lg font-black text-white font-mono">
+                  {pendingCounts.pendingModerationReports ?? 0}
+                </span>
+                <span className="text-[10px] text-rose-400 font-medium">রিভিউ</span>
               </div>
             </div>
           </div>

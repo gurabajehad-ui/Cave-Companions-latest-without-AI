@@ -981,10 +981,17 @@ export const SalahJourneyView: React.FC<SalahJourneyViewProps> = ({
               </div>
 
               {/* Explaining Microcopy */}
-              <div className="p-3.5 rounded-2xl bg-rose-950/30 border border-rose-800/40 text-xs text-rose-200 leading-relaxed">
-                {language === 'bn'
-                  ? '“আপনার একটি টোকেন, যখন বাস্তবে ব্যবহৃত হয়—তখনই তা দানের প্রভাবে পরিণত হয়।”'
-                  : '“A donated token becomes real impact when it is actually used.”'}
+              <div className="p-3.5 rounded-2xl bg-rose-950/30 border border-rose-800/40 text-xs text-rose-200 leading-relaxed space-y-1">
+                <p className="font-bold">
+                  {language === 'bn'
+                    ? '“কোনো টোকেনের নির্দিষ্ট ফিক্সড মূল্য নেই—দোকানের ছাড় অনুযায়ী টোকেনের মূল্য নির্ধারিত হয়।”'
+                    : '“Tokens have no fixed nominal price—their value is determined by the specific shop discount when used.”'}
+                </p>
+                <p className="text-[11px] text-rose-300/90">
+                  {language === 'bn'
+                    ? 'দানকৃত টোকেনটি ব্যবহারের সময় যে টাকা ছাড় পাওয়ার কথা ছিল, তা ফেরত না নিয়ে দোকানে পূর্ণ মূল্যে ক্রয়ের মাধ্যমে সেই সমপরিমাণ অর্থ কেভ কম্প্যানিয়ন্স থেকে কেন্দ্রীয় কল্যাণ তহবিলে দান করা হয়েছে।'
+                    : 'By waiving the entitled token discount and purchasing at full regular price, the equivalent discount amount is contributed to the Central Welfare Fund.'}
+                </p>
               </div>
 
               {/* Stats Breakdown */}

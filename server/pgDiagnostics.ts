@@ -1,4 +1,4 @@
-import { pool, query, useSqliteFallback } from './pg.js';
+import { pool, query } from './pg.js';
 
 export interface DbDiagnosticResult {
   status: 'HEALTHY' | 'DEGRADED' | 'FAILED';
@@ -69,7 +69,6 @@ export async function runPostgresDiagnostic(): Promise<DbDiagnosticResult> {
         NOW()::text as server_time, 
         version() as ver
     `);
-
     const pingDuration = Date.now() - startTime;
     const meta = pingRes.rows[0];
 
@@ -88,7 +87,6 @@ export async function runPostgresDiagnostic(): Promise<DbDiagnosticResult> {
       WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
       ORDER BY table_name ASC
     `);
-
     const foundTables = tablesRes.rows.map(r => r.table_name.toLowerCase());
     const missingTables = EXPECTED_TABLES.filter(t => !foundTables.includes(t.toLowerCase()));
 
@@ -106,16 +104,15 @@ export async function runPostgresDiagnostic(): Promise<DbDiagnosticResult> {
     }
 
     const isHealthy = pingRes.rowCount !== null && missingTables.length === 0;
-
     const result: DbDiagnosticResult = {
       status: isHealthy ? 'HEALTHY' : 'DEGRADED',
       pingMs: pingDuration,
-      database: useSqliteFallback ? 'cave_companions.db' : (meta?.db || dbName),
-      user: useSqliteFallback ? 'local_dev' : (meta?.usr || dbUser),
-      host: useSqliteFallback ? 'local (SQLite Fallback)' : host,
-      port: useSqliteFallback ? 0 : port,
+      database: meta?.db || dbName,
+      user: meta?.usr || dbUser,
+      host,
+      port,
       serverTime: meta?.server_time || new Date().toISOString(),
-      pgVersion: useSqliteFallback ? 'SQLite 3 (WASM Development Fallback)' : (meta?.ver ? meta.ver.split(' on ')[0] : 'PostgreSQL'),
+      pgVersion: meta?.ver ? meta.ver.split(' on ')[0] : 'PostgreSQL',
       pool: poolStats,
       schema: {
         schemaVisible: foundTables.length > 0,
@@ -153,7 +150,6 @@ export async function runPostgresDiagnostic(): Promise<DbDiagnosticResult> {
       },
       error: err.message || String(err)
     };
-
     logDiagnosticReport(errorResult);
     return errorResult;
   }
@@ -164,15 +160,13 @@ export async function runPostgresDiagnostic(): Promise<DbDiagnosticResult> {
  */
 function logDiagnosticReport(result: DbDiagnosticResult) {
   const line = '═'.repeat(64);
-  const headerTitle = useSqliteFallback ? 'DATABASE DIAGNOSTIC (SQLITE DEV FALLBACK)' : 'POSTGRESQL CONNECTION & SCHEMA DIAGNOSTIC';
+  const headerTitle = 'POSTGRESQL CONNECTION & SCHEMA DIAGNOSTIC';
   const padding = Math.max(0, Math.floor((64 - headerTitle.length) / 2));
   console.log(`\n\x1b[36m╔${line}╗\x1b[0m`);
   console.log(`\x1b[36m║\x1b[1m\x1b[37m${' '.repeat(padding)}${headerTitle}${' '.repeat(64 - padding - headerTitle.length)}\x1b[0m\x1b[36m║\x1b[0m`);
   console.log(`\x1b[36m╠${line}╣\x1b[0m`);
-
   if (result.status === 'HEALTHY') {
-    const statusText = useSqliteFallback ? 'ACTIVE & HEALTHY (Local SQLite Fallback)' : 'ACTIVE & HEALTHY';
-    console.log(`\x1b[36m║\x1b[0m  \x1b[32m✔ Status:\x1b[0m \x1b[1m\x1b[32m${statusText}\x1b[0m`);
+    console.log(`\x1b[36m║\x1b[0m  \x1b[32m✔ Status:\x1b[0m \x1b[1m\x1b[32mACTIVE & HEALTHY\x1b[0m`);
     console.log(`\x1b[36m║\x1b[0m  \x1b[32m✔ Query Test (SELECT 1):\x1b[0m \x1b[32mSUCCESS\x1b[0m (${result.pingMs}ms)`);
   } else if (result.status === 'DEGRADED') {
     console.log(`\x1b[36m║\x1b[0m  \x1b[33m⚠ Status:\x1b[0m \x1b[1m\x1b[33mDEGRADED\x1b[0m (Missing tables: ${result.schema.missingTables.join(', ')})`);
@@ -181,11 +175,10 @@ function logDiagnosticReport(result: DbDiagnosticResult) {
     console.log(`\x1b[36m║\x1b[0m  \x1b[31m✖ Status:\x1b[0m \x1b[1m\x1b[31mCONNECTION FAILED\x1b[0m`);
     console.log(`\x1b[36m║\x1b[0m  \x1b[31m✖ Error:\x1b[0m ${result.error}`);
   }
-
   console.log(`\x1b[36m║\x1b[0m  \x1b[34m• Target DB:\x1b[0m ${result.database} | \x1b[34mUser:\x1b[0m ${result.user} | \x1b[34mHost:\x1b[0m ${result.host}${result.port ? `:${result.port}` : ''}`);
   console.log(`\x1b[36m║\x1b[0m  \x1b[34m• Engine:\x1b[0m ${result.pgVersion}`);
   console.log(`\x1b[36m║\x1b[0m  \x1b[34m• Pool Status:\x1b[0m Total: ${result.pool.totalCount} | Idle: ${result.pool.idleCount} | Waiting: ${result.pool.waitingCount} | Max: ${result.pool.maxLimit}`);
-  
+
   if (result.schema.schemaVisible) {
     console.log(`\x1b[36m║\x1b[0m  \x1b[35m• Schema Visibility:\x1b[0m ${result.schema.tablesFound.length} public tables detected`);
     const countsStr = Object.entries(result.schema.tableCounts)
@@ -195,7 +188,6 @@ function logDiagnosticReport(result: DbDiagnosticResult) {
   } else {
     console.log(`\x1b[36m║\x1b[0m  \x1b[31m• Schema Visibility:\x1b[0m No tables visible in 'public' schema`);
   }
-
   console.log(`\x1b[36m╚${line}╝\x1b[0m\n`);
 
   // Also emit structured JSON for production Cloud Logging / Cloud Run log sinks
@@ -205,7 +197,7 @@ function logDiagnosticReport(result: DbDiagnosticResult) {
     severity: result.status === 'HEALTHY' ? 'INFO' : result.status === 'DEGRADED' ? 'WARNING' : 'ERROR',
     message: `[Database Diagnostic] Status: ${result.status} (${result.pingMs}ms, ${result.schema.tablesFound.length} tables verified)`,
     component: 'db-diagnostic',
-    engine: useSqliteFallback ? 'sqlite-fallback' : 'postgresql',
+    engine: 'postgresql',
     cloudRun: {
       service: cloudRunService,
       revision: cloudRunRevision

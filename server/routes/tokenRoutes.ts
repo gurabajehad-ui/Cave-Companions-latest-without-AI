@@ -16,6 +16,13 @@ router.get('/my-tokens', requireAuth, async (req: AuthRequest, res) => {
     const user = req.user!;
     const todayStr = getTodayDateString();
 
+    // Auto-generate/update today's token if 3/4/5 prayers are completed
+    try {
+      await db.generateOrUpdateDailyToken(user.id, todayStr);
+    } catch (e) {
+      console.warn('[TokenRoutes:my-tokens] auto-generate today token warning:', e);
+    }
+
     // Auto-evaluate previous day during morning grace period
     const graceStatus = await db.evaluatePreviousDayGracePeriodToken(user.id);
     const tokenData = await db.getUserTokens(user.id);
@@ -29,8 +36,12 @@ router.get('/my-tokens', requireAuth, async (req: AuthRequest, res) => {
       dailyRedeemWarning: !dailyCheck.canRedeem ? dailyCheck.reason : null,
       availableCount: tokenData.totalAvailable,
       availableTokens: tokenData.available,
+      normalAvailableTokens: (tokenData as any).normalAvailable || [],
+      donatedAvailableTokens: (tokenData as any).donatedAvailable || [],
       usedCount: tokenData.totalUsed,
       usedTokens: tokenData.used,
+      donatedCount: (tokenData as any).totalDonated || (tokenData as any).donated?.length || 0,
+      donatedTokens: (tokenData as any).donated || [],
       gracePeriod: {
         inGracePeriod: graceInfo.inGracePeriod,
         yesterdayDate: graceInfo.yesterdayDateStr,

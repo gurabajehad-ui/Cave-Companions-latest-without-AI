@@ -291,14 +291,22 @@ export const MerchantPortalView: React.FC<MerchantPortalViewProps> = ({
   // Centralized helper to handle authentication/authorization failures across merchant API calls
   const handleAuthFailure = useCallback((err: any) => {
     const status = err?.status || err?.response?.status;
-    const isAuthError = status === 401 || status === 403 || 
-      err?.message?.includes('401') || err?.message?.includes('403') ||
-      err?.message?.includes('UNAUTHORIZED') || err?.message?.includes('EXPIRED') ||
-      err?.message?.includes('SUSPENDED') || err?.message?.includes('DELETED') ||
-      err?.message?.includes('প্রবেশাধিকার সংরক্ষিত বা অননুমোদিত সেশন') ||
-      err?.message?.includes('মার্চেন্ট পোর্টালে প্রবেশের জন্য');
+    const errCode = err?.code || err?.data?.code || err?.data?.error;
+    
+    // Explicit session expiration or deleted account only.
+    // NEVER treat 403, ACCOUNT_PENDING, SHOP_NOT_ACTIVE, or network errors as session expiration!
+    const isSessionExpired = 
+      errCode === 'INVALID_MERCHANT_TOKEN' || 
+      errCode === 'SESSION_EXPIRED' || 
+      errCode === 'ACCOUNT_DELETED' ||
+      (status === 401 && (
+        err?.message?.includes('মেয়াদ শেষ') ||
+        err?.message?.includes('অবৈধ') ||
+        err?.message?.includes('ACCOUNT_DELETED') ||
+        err?.message?.includes('INVALID_MERCHANT_TOKEN')
+      ));
 
-    if (isAuthError) {
+    if (isSessionExpired) {
       removeStoredMerchantToken();
       setMerchantToken(null);
       setMerchant(null);
@@ -311,7 +319,7 @@ export const MerchantPortalView: React.FC<MerchantPortalViewProps> = ({
       setRedemptionRequests([]);
       setIsLoggingIn(false);
       if (onShowToast) {
-        onShowToast('info', 'মার্চেন্ট সেশন', err?.message || 'মার্চেন্ট সেশনের মেয়াদ শেষ হয়েছে বা অ্যাক্সেস বাতিল করা হয়েছে।');
+        onShowToast('info', 'মার্চেন্ট সেশন', 'মার্চেন্ট সেশনের মেয়াদ শেষ হয়েছে। অনুগ্রহ করে পুনরায় লগইন করুন।');
       }
       return true;
     }
@@ -431,14 +439,15 @@ export const MerchantPortalView: React.FC<MerchantPortalViewProps> = ({
         setEditSilverDiscount(meRes.shop?.silverDiscount || 10);
         setEditBronzeDiscount(meRes.shop?.bronzeDiscount || 5);
 
+        const isShopActive = (meRes.shop?.status || '').toUpperCase() === 'ACTIVE';
         const [dashRes, txRes, offersRes, statusRes] = await Promise.all([
-          api.getMerchantDashboard().catch((e) => { handleAuthFailure(e); return null; }),
-          api.getMerchantTransactions().catch((e) => { handleAuthFailure(e); return null; }),
-          api.getMerchantOffers().catch((e) => { handleAuthFailure(e); return null; }),
-          api.getMerchantRegistrationStatus().catch((e) => { handleAuthFailure(e); return null; })
+          api.getMerchantDashboard().catch(() => null),
+          isShopActive ? api.getMerchantTransactions().catch(() => null) : Promise.resolve({ success: true, count: 0, transactions: [] } as any),
+          isShopActive ? api.getMerchantOffers().catch(() => null) : Promise.resolve(null),
+          api.getMerchantRegistrationStatus().catch(() => null)
         ]);
         if (dashRes?.success) setDashboardStats(dashRes.stats);
-        if (txRes?.success) setTransactions(txRes.transactions);
+        if (txRes?.success) setTransactions(txRes.transactions || []);
         if (offersRes?.success) {
           setPendingCommissionRequest(offersRes.pendingCommissionRequest);
           setCommissionRequests((offersRes as any).requests || []);
@@ -1527,6 +1536,7 @@ export const MerchantPortalView: React.FC<MerchantPortalViewProps> = ({
         verification={verification}
         onRefresh={loadMerchantDashboard}
         onLogout={handleLogout}
+        onExit={onExitMerchant}
       />
     );
   }

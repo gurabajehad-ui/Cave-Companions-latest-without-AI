@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 import { 
@@ -62,7 +62,8 @@ import {
   Radio,
   Flag,
   AlertTriangle,
-  X
+  X,
+  Reply
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -94,7 +95,26 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
   const [newCircleCategory, setNewCircleCategory] = useState('Islamic');
   const [newCircleStreak, setNewCircleStreak] = useState(7);
   const [loading, setLoading] = useState(true);
-  const [activeCircleId, setActiveCircleId] = useState<string | null>(null);
+  const [activeCircleId, setActiveCircleId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('cave_active_circle_id') || null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    if (activeCircleId) {
+      try {
+        localStorage.setItem('cave_active_circle_id', activeCircleId);
+      } catch {}
+    } else {
+      try {
+        localStorage.removeItem('cave_active_circle_id');
+      } catch {}
+    }
+  }, [activeCircleId]);
+
   const [subTab, setSubTab] = useState<CircleSubTab>('salah');
 
   // Battles / Inter-Circle Competition State
@@ -160,6 +180,10 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
   const [incomingCall, setIncomingCall] = useState<any | null>(null);
   const [isAudioCallOpen, setIsAudioCallOpen] = useState(false);
   const [isAudioCallConnected, setIsAudioCallConnected] = useState(false);
+  const [isMediaConnected, setIsMediaConnected] = useState(false);
+  const [mediaConnectionQuality, setMediaConnectionQuality] = useState<'idle' | 'connecting' | 'connected' | 'failed' | 'disconnected'>('idle');
+  const [isAudioPlaybackBlocked, setIsAudioPlaybackBlocked] = useState(false);
+  const [microphoneError, setMicrophoneError] = useState<string | null>(null);
   const [isCallMuted, setIsCallMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true); // Default to Loudspeaker
   const [isCallMinimized, setIsCallMinimized] = useState(false);
@@ -170,6 +194,11 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
   const callStatusPollingRef = useRef<any>(null);
   const incomingCallPollingRef = useRef<any>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const lastSignalIdRef = useRef<number>(0);
+  const callSignalsPollingRef = useRef<any>(null);
   const ringtoneCtxRef = useRef<any>(null);
   const incomingRingtoneCtxRef = useRef<any>(null);
 
@@ -356,11 +385,259 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
     };
   }, [user, isAudioCallOpen, incomingCall]);
 
+  // Safe helper to acquire microphone with explicit, localized error handling
+  const acquireMicrophoneStream = async (): Promise<{ stream: MediaStream | null; error?: string }> => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      const errMsg = isBn 
+        ? 'আপনার ব্রাউজারে মাইক্রোফোন সাপোর্ট নেই।' 
+        : 'Microphone access is not supported by your browser.';
+      return { stream: null, error: errMsg };
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+      return { stream };
+    } catch (err: any) {
+      console.warn('[AudioCall] getUserMedia failed:', err.name, err.message);
+      let errMsg = isBn 
+        ? 'মাইক্রোফোন চালু করা যায়নি।' 
+        : 'Could not access microphone.';
+
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        errMsg = isBn 
+          ? 'মাইক্রোফোন পারমিশন প্রত্যাখ্যাত হয়েছে। ব্রাউজার বা সাইট সেটিংসে মাইক্রোফোন অ্যালাও করুন।' 
+          : 'Microphone permission denied. Please allow microphone access in your browser or site settings.';
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        errMsg = isBn 
+          ? 'কোনো মাইক্রোফোন পাওয়া যায়নি। অনুগ্রহ করে হেডফোন বা মাইক চেক করুন।' 
+          : 'No microphone found. Please connect an audio input device.';
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        errMsg = isBn 
+          ? 'মাইক্রোফোনটি অন্য কোনো অ্যাপ্লিকেশনে ব্যবহৃত হচ্ছে।' 
+          : 'Microphone is already in use by another application.';
+      }
+
+      return { stream: null, error: errMsg };
+    }
+  };
+
+  // Explicit user-gesture recovery for browser autoplay policy rejections
+  const handleEnableAudioPlayback = () => {
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.play().then(() => {
+        setIsAudioPlaybackBlocked(false);
+        onShowToast(
+          'success', 
+          isBn ? 'অডিও চালু হয়েছে' : 'Audio Enabled', 
+          isBn ? 'ভয়েস অডিও সক্রিয় হয়েছে।' : 'Voice audio is active.'
+        );
+      }).catch(err => {
+        console.warn('[AudioCall] Manual audio play retry failed:', err);
+      });
+    }
+  };
+
+  // WebRTC Real-Time Voice Streaming Setup & Signaling
+  const setupWebRTC = (callId: string, isCaller: boolean) => {
+    try {
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+      }
+      pendingIceCandidatesRef.current = [];
+      setIsMediaConnected(false);
+      setMediaConnectionQuality('connecting');
+      setIsAudioPlaybackBlocked(false);
+
+      const pc = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' }
+        ]
+      });
+      peerConnectionRef.current = pc;
+
+      // Real-time connection and ICE state diagnostics
+      pc.oniceconnectionstatechange = () => {
+        const state = pc.iceConnectionState;
+        console.log('[WebRTC] ICE Connection State:', state);
+        if (state === 'connected' || state === 'completed') {
+          setIsMediaConnected(true);
+          setMediaConnectionQuality('connected');
+        } else if (state === 'disconnected') {
+          setMediaConnectionQuality('disconnected');
+        } else if (state === 'failed') {
+          setIsMediaConnected(false);
+          setMediaConnectionQuality('failed');
+          console.warn('[WebRTC] ICE Connection Failed (NAT/Firewall restriction - requires TURN relay for cellular/cross-NAT connections)');
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        const state = pc.connectionState;
+        console.log('[WebRTC] Peer Connection State:', state);
+        if (state === 'connected') {
+          setIsMediaConnected(true);
+          setMediaConnectionQuality('connected');
+        } else if (state === 'failed') {
+          setIsMediaConnected(false);
+          setMediaConnectionQuality('failed');
+        } else if (state === 'disconnected') {
+          setMediaConnectionQuality('disconnected');
+        }
+      };
+
+      pc.onsignalingstatechange = () => {
+        console.log('[WebRTC] Signaling State:', pc.signalingState);
+      };
+
+      pc.onicegatheringstatechange = () => {
+        console.log('[WebRTC] ICE Gathering State:', pc.iceGatheringState);
+      };
+
+      (pc as any).onicecandidateerror = (event: any) => {
+        console.warn('[WebRTC] ICE Candidate Error:', event.errorCode, event.errorText);
+      };
+
+      // Remote audio track receiving and encapsulation
+      pc.ontrack = (event) => {
+        console.log('[WebRTC] ontrack received:', event.track.kind, 'track ID:', event.track.id, 'streams count:', event.streams?.length);
+        if (event.track.kind !== 'audio') return;
+
+        // Correctly handle RTCTrackEvent even when event.streams is empty
+        let targetStream: MediaStream;
+        if (event.streams && event.streams[0]) {
+          targetStream = event.streams[0];
+          remoteStreamRef.current = targetStream;
+        } else {
+          if (!remoteStreamRef.current) {
+            remoteStreamRef.current = new MediaStream();
+          }
+          // Prevent duplicate track attachment
+          const existingTracks = remoteStreamRef.current.getAudioTracks();
+          if (!existingTracks.some(t => t.id === event.track.id)) {
+            remoteStreamRef.current.addTrack(event.track);
+          }
+          targetStream = remoteStreamRef.current;
+        }
+
+        if (remoteAudioRef.current) {
+          if (remoteAudioRef.current.srcObject !== targetStream) {
+            remoteAudioRef.current.srcObject = targetStream;
+          }
+          remoteAudioRef.current.play().then(() => {
+            setIsAudioPlaybackBlocked(false);
+            console.log('[WebRTC] Remote audio playback active');
+          }).catch(err => {
+            console.warn('[WebRTC] Remote audio play blocked by browser autoplay policy:', err);
+            setIsAudioPlaybackBlocked(true);
+          });
+        } else {
+          console.warn('[WebRTC] remoteAudioRef is not currently mounted');
+        }
+      };
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate && callId) {
+          api.sendCallSignal(callId, {
+            type: 'candidate',
+            payload: JSON.stringify(event.candidate)
+          }).catch(() => {});
+        }
+      };
+
+      // Local audio track publishing:
+      // If microphone track exists, attach cleanly to the stream.
+      // If mic track is not yet available, configure transceiver to receive remote audio.
+      if (localStreamRef.current && localStreamRef.current.getAudioTracks().length > 0) {
+        localStreamRef.current.getAudioTracks().forEach(track => {
+          pc.addTrack(track, localStreamRef.current!);
+        });
+      } else {
+        try {
+          pc.addTransceiver('audio', { direction: 'recvonly' });
+        } catch {}
+      }
+
+      if (isCaller) {
+        pc.createOffer().then(offer => {
+          pc.setLocalDescription(offer);
+          api.sendCallSignal(callId, {
+            type: 'offer',
+            payload: JSON.stringify(offer)
+          }).catch(() => {});
+        }).catch(err => console.warn('Create offer error:', err));
+      }
+
+      lastSignalIdRef.current = 0;
+      if (callSignalsPollingRef.current) clearInterval(callSignalsPollingRef.current);
+      callSignalsPollingRef.current = setInterval(async () => {
+        if (!callId) return;
+        try {
+          const sigRes = await api.getCallSignals(callId, lastSignalIdRef.current);
+          if (sigRes.success && sigRes.signals && sigRes.signals.length > 0) {
+            const currentPc = peerConnectionRef.current;
+            for (const sig of sigRes.signals) {
+              if (sig.id > lastSignalIdRef.current) {
+                lastSignalIdRef.current = sig.id;
+              }
+              if (!currentPc) continue;
+              const data = JSON.parse(sig.payload);
+              if (sig.signal_type === 'offer') {
+                await currentPc.setRemoteDescription(new RTCSessionDescription(data));
+                while (pendingIceCandidatesRef.current.length > 0) {
+                  const cand = pendingIceCandidatesRef.current.shift();
+                  if (cand) {
+                    await currentPc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+                  }
+                }
+                const answer = await currentPc.createAnswer();
+                await currentPc.setLocalDescription(answer);
+                await api.sendCallSignal(callId, {
+                  type: 'answer',
+                  payload: JSON.stringify(answer)
+                });
+              } else if (sig.signal_type === 'answer') {
+                await currentPc.setRemoteDescription(new RTCSessionDescription(data));
+                while (pendingIceCandidatesRef.current.length > 0) {
+                  const cand = pendingIceCandidatesRef.current.shift();
+                  if (cand) {
+                    await currentPc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+                  }
+                }
+              } else if (sig.signal_type === 'candidate') {
+                try {
+                  if (currentPc.remoteDescription && currentPc.remoteDescription.type) {
+                    await currentPc.addIceCandidate(new RTCIceCandidate(data));
+                  } else {
+                    pendingIceCandidatesRef.current.push(data);
+                  }
+                } catch (e) {
+                  console.warn('Add ice candidate error:', e);
+                }
+              }
+            }
+          }
+        } catch {}
+      }, 800);
+    } catch (e) {
+      console.warn('WebRTC setup error:', e);
+    }
+  };
+
   // Caller initiates audio call (RINGS INDEFINITELY UNTIL ANSWERED OR HUNG UP)
   const handleStartAudioCall = async (targetMember?: any) => {
     setIsCallMembersModalOpen(false);
     setIsAudioCallOpen(true);
     setIsAudioCallConnected(false);
+    setIsMediaConnected(false);
+    setMediaConnectionQuality('idle');
+    setIsAudioPlaybackBlocked(false);
     setIsCallMinimized(false);
     setIsCallMuted(false);
     setIsSpeakerOn(true);
@@ -374,20 +651,22 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
 
     startRingbackTone();
 
-    // Acquire microphone safely in the background
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      }).catch(() => null);
-      if (stream) {
-        localStreamRef.current = stream;
+    // Pre-prime audio element inside synchronous user gesture to avoid autoplay block
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.play().catch(() => {});
+    }
+
+    // Acquire microphone safely with explicit error reporting
+    const micRes = await acquireMicrophoneStream();
+    if (micRes.stream) {
+      localStreamRef.current = micRes.stream;
+      setMicrophoneError(null);
+    } else {
+      localStreamRef.current = null;
+      setMicrophoneError(micRes.error || null);
+      if (micRes.error) {
+        onShowToast('error', isBn ? 'মাইক্রোফোন ত্রুটি' : 'Microphone Error', micRes.error);
       }
-    } catch (err) {
-      console.warn('[AudioCall] Mic acquisition fallback:', err);
     }
 
     // Create Call Session on Server
@@ -405,7 +684,7 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
       console.warn('Call initiation API error:', callErr);
     }
 
-    // Continuous Status Polling: Detects when recipient answers or declines (NO AUTO-CONNECT)
+    // Continuous Status Polling: Detects when recipient answers or declines
     if (cId) {
       callStatusPollingRef.current = setInterval(async () => {
         try {
@@ -421,6 +700,9 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
               setIsAudioCallConnected(true);
               setCallStatus('CONNECTED');
 
+              // Initialize WebRTC peer connection & signaling for voice pass
+              setupWebRTC(cId, true);
+
               if (callTimerRef.current) clearInterval(callTimerRef.current);
               callTimerRef.current = setInterval(() => {
                 setCallDuration(prev => prev + 1);
@@ -432,7 +714,6 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
                 isBn ? 'সাথী কল রিসিভ করেছেন। কথা বলুন।' : 'Recipient answered the call.'
               );
             } else if (stRes.status === 'REJECTED') {
-              // RECIPIENT DECLINED
               stopRingbackTone();
               if (callStatusPollingRef.current) {
                 clearInterval(callStatusPollingRef.current);
@@ -465,6 +746,11 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
     const callToJoin = incomingCall;
     setIncomingCall(null);
 
+    // Pre-prime audio element inside synchronous user gesture
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.play().catch(() => {});
+    }
+
     try {
       await api.answerCircleCall(callToJoin.id);
     } catch (e) {
@@ -483,21 +769,30 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
 
     setIsAudioCallOpen(true);
     setIsAudioCallConnected(true);
+    setIsMediaConnected(false);
+    setMediaConnectionQuality('connecting');
+    setIsAudioPlaybackBlocked(false);
     setIsCallMinimized(false);
     setIsCallMuted(false);
     setIsSpeakerOn(true);
     setCallDuration(0);
     setCallStatus('CONNECTED');
 
-    // Acquire microphone
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-      }).catch(() => null);
-      if (stream) {
-        localStreamRef.current = stream;
+    // Acquire microphone with error reporting
+    const micRes = await acquireMicrophoneStream();
+    if (micRes.stream) {
+      localStreamRef.current = micRes.stream;
+      setMicrophoneError(null);
+    } else {
+      localStreamRef.current = null;
+      setMicrophoneError(micRes.error || null);
+      if (micRes.error) {
+        onShowToast('error', isBn ? 'মাইক্রোফোন ত্রুটি' : 'Microphone Error', micRes.error);
       }
-    } catch {}
+    }
+
+    // Initialize WebRTC peer connection & signaling for recipient
+    setupWebRTC(callToJoin.id, false);
 
     if (callTimerRef.current) clearInterval(callTimerRef.current);
     callTimerRef.current = setInterval(() => {
@@ -557,13 +852,32 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
     );
   };
 
-  const toggleSpeaker = () => {
+  const toggleSpeaker = async () => {
     const nextSpeaker = !isSpeakerOn;
     setIsSpeakerOn(nextSpeaker);
+
+    // If browser supports audio output selection (setSinkId)
+    if (remoteAudioRef.current && typeof (remoteAudioRef.current as any).setSinkId === 'function') {
+      try {
+        const devices = await navigator.mediaDevices?.enumerateDevices?.();
+        const audioOutputs = devices?.filter(d => d.kind === 'audiooutput') || [];
+        if (audioOutputs.length > 0) {
+          const targetDevice = nextSpeaker 
+            ? audioOutputs.find(d => d.label.toLowerCase().includes('speaker')) || audioOutputs[0]
+            : audioOutputs.find(d => !d.label.toLowerCase().includes('speaker')) || audioOutputs[0];
+          if (targetDevice) {
+            await (remoteAudioRef.current as any).setSinkId(targetDevice.deviceId);
+          }
+        }
+      } catch (err) {
+        console.warn('[AudioCall] Audio sink selection note:', err);
+      }
+    }
+
     onShowToast(
       'info',
-      nextSpeaker ? (isBn ? 'লাউডস্পিকার চালু' : 'Loudspeaker ON') : (isBn ? 'লাউডস্পিকার বন্ধ' : 'Loudspeaker OFF'),
-      nextSpeaker ? (isBn ? 'উচ্চ আওয়াজে লাউডস্পিকার মোড চালু হয়েছে।' : 'Speakerphone volume mode active.') : (isBn ? 'স্বাভাবিক ইয়ারপিস মোড চালু হয়েছে।' : 'Normal audio mode active.')
+      nextSpeaker ? (isBn ? 'লাউডস্পিকার মোড' : 'Loudspeaker Mode') : (isBn ? 'স্বাভাবিক অডিও মোড' : 'Normal Audio Mode'),
+      nextSpeaker ? (isBn ? 'লাউডস্পিকার মোড সক্রিয়।' : 'Loudspeaker output active.') : (isBn ? 'স্বাভাবিক অডিও আউটপুট সক্রিয়।' : 'Normal audio output active.')
     );
   };
 
@@ -574,12 +888,30 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
       clearInterval(callStatusPollingRef.current);
       callStatusPollingRef.current = null;
     }
+    if (callSignalsPollingRef.current) {
+      clearInterval(callSignalsPollingRef.current);
+      callSignalsPollingRef.current = null;
+    }
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
     if (notifyServer && activeCallId) {
       api.endCircleCall(activeCallId).catch(() => {});
     }
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => track.stop());
       localStreamRef.current = null;
+    }
+    if (remoteStreamRef.current) {
+      remoteStreamRef.current.getTracks().forEach(track => track.stop());
+      remoteStreamRef.current = null;
+    }
+    if (remoteAudioRef.current) {
+      try {
+        remoteAudioRef.current.pause();
+        remoteAudioRef.current.srcObject = null;
+      } catch {}
     }
     if (callTimerRef.current) {
       clearInterval(callTimerRef.current);
@@ -588,6 +920,10 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
     setActiveCallId(null);
     setIsAudioCallOpen(false);
     setIsAudioCallConnected(false);
+    setIsMediaConnected(false);
+    setMediaConnectionQuality('idle');
+    setIsAudioPlaybackBlocked(false);
+    setMicrophoneError(null);
     setIsCallMinimized(false);
     setIsCallMuted(false);
     setIsSpeakerOn(false);
@@ -604,10 +940,29 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
   };
 
   // Active Circle Details
-  const [circleDetails, setCircleDetails] = useState<any>(null);
+  const [circleDetails, setCircleDetails] = useState<any>(() => {
+    try {
+      const saved = localStorage.getItem('cave_active_circle_details');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [members, setMembers] = useState<any[]>([]);
   const [aggregateProgress, setAggregateProgress] = useState<any>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
+
+  useEffect(() => {
+    if (circleDetails) {
+      try {
+        localStorage.setItem('cave_active_circle_details', JSON.stringify(circleDetails));
+      } catch {}
+    } else {
+      try {
+        localStorage.removeItem('cave_active_circle_details');
+      } catch {}
+    }
+  }, [circleDetails]);
 
   // Quran Goals State
   const [quranGoal, setQuranGoal] = useState<any>(null);
@@ -621,6 +976,22 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [replyingToMessage, setReplyingToMessage] = useState<any | null>(null);
+  const [activeMessageMenu, setActiveMessageMenu] = useState<any | null>(null);
+
+  const handleDeleteMessage = async (msgId: string) => {
+    if (!activeCircleId) return;
+    try {
+      const res = await api.deleteCircleMessage(activeCircleId, msgId);
+      if (res.success) {
+        onShowToast('success', isBn ? 'মুছে ফেলা হয়েছে' : 'Deleted', isBn ? 'বার্তাটি সফলভাবে মুছে ফেলা হয়েছে।' : 'Message deleted successfully.');
+        setMessages(prev => prev.filter(m => m.id !== msgId));
+        setActiveMessageMenu(null);
+      }
+    } catch (err: any) {
+      onShowToast('error', isBn ? 'ত্রুটি' : 'Error', err.message || 'Could not delete message');
+    }
+  };
 
   // User Reporting State (Phase 3)
   const [reportingMessage, setReportingMessage] = useState<any | null>(null);
@@ -634,6 +1005,7 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const pendingIceCandidatesRef = useRef<any[]>([]);
 
   useEffect(() => {
     return () => {
@@ -742,29 +1114,45 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
 
   useEffect(() => {
     if (activeCircleId) {
-      fetchCircleDetails(activeCircleId);
-      fetchQuranGoals(activeCircleId);
-      fetchMessages(activeCircleId);
-      fetchCircleBattles(activeCircleId);
+      // Instantly populate circleDetails if available in cached circles list for zero opening delay
+      const cached = circles.find(c => c.id === activeCircleId);
+      if (cached) {
+        setCircleDetails(cached);
+      }
 
-      // Auto poll messages & battles
+      // Fetch all details, quran goals, messages and battles in parallel
+      Promise.all([
+        fetchCircleDetails(activeCircleId).catch(() => {}),
+        fetchQuranGoals(activeCircleId).catch(() => {}),
+        fetchMessages(activeCircleId).catch(() => {}),
+        fetchCircleBattles(activeCircleId).catch(() => {})
+      ]).catch(() => {});
+
+      // Auto poll messages & battles - interval 6s
       const interval = setInterval(() => {
-        fetchMessages(activeCircleId);
-        fetchCircleBattles(activeCircleId);
-      }, 4000);
+        fetchMessages(activeCircleId).catch(() => {});
+        fetchCircleBattles(activeCircleId).catch(() => {});
+      }, 6000);
 
       return () => clearInterval(interval);
     }
   }, [activeCircleId]);
 
-  // Auto scroll chat to bottom when messages update in fullscreen mode
-  useEffect(() => {
+  // Jump directly to last conversation instantly when chat opens or messages update
+  useLayoutEffect(() => {
     if (isChatFullscreen && fullscreenChatScrollRef.current) {
-      fullscreenChatScrollRef.current.scrollTop = fullscreenChatScrollRef.current.scrollHeight;
+      const el = fullscreenChatScrollRef.current;
+      el.scrollTop = el.scrollHeight;
+      requestAnimationFrame(() => {
+        if (fullscreenChatScrollRef.current) {
+          fullscreenChatScrollRef.current.scrollTop = fullscreenChatScrollRef.current.scrollHeight;
+        }
+      });
     }
-  }, [messages, isChatFullscreen]);
+  }, [messages, isChatFullscreen, activeCircleId]);
 
   const fetchCircles = async () => {
+    if (circles.length > 0) return; // Skip if already loaded
     setLoading(true);
     try {
       const res = await api.getCircles();
@@ -1052,6 +1440,7 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
       console.error(err);
       onShowToast('error', t('common.error'), t('circle.errors.detailsLoadFailed'));
       setActiveCircleId(null);
+      setCircleDetails(null);
     } finally {
       setDetailsLoading(false);
     }
@@ -1071,17 +1460,53 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
     }
   };
 
+  const formatChatTime = (createdAt: string) => {
+    if (!createdAt) return 'এখন';
+    let dateStr = createdAt;
+    if (dateStr.includes(' ') && !dateStr.includes('Z') && !dateStr.includes('+')) {
+      dateStr = dateStr.replace(' ', 'T') + 'Z';
+    }
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return 'এখন';
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return 'এখন';
+    }
+  };
+
   const fetchMessages = async (id: string) => {
-    setChatLoading(true);
     try {
       const res = await api.getCircleMessages(id);
       if (res.success) {
-        setMessages(res.messages || []);
+        const serverMsgs = res.messages || [];
+        const serverCalls = (res.calls || []).map((c: any) => ({
+          id: `call-log-${c.id}`,
+          circle_id: c.circle_id,
+          user_id: c.caller_user_id,
+          sender_name: c.caller_name,
+          photo_url: c.caller_photo_url,
+          message_type: 'CALL_LOG',
+          content: c.status,
+          call_details: c,
+          created_at: c.created_at
+        }));
+
+        const combined = [...serverMsgs, ...serverCalls].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+        setMessages(prev => {
+          if (prev.length === combined.length && prev[prev.length - 1]?.id === combined[combined.length - 1]?.id) {
+            return prev;
+          }
+          const tempMsgs = prev.filter(m => m.id.startsWith('temp-'));
+          const unmatchedTemps = tempMsgs.filter(t => 
+            !combined.some((sm: any) => sm.user_id === t.user_id && sm.content === t.content && Math.abs(new Date(sm.created_at).getTime() - new Date(t.created_at).getTime()) < 15000)
+          );
+          return [...combined, ...unmatchedTemps];
+        });
       }
     } catch (err) {
       console.error('Messages load error:', err);
-    } finally {
-      setChatLoading(false);
     }
   };
 
@@ -1148,6 +1573,7 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
       if (res.success) {
         onShowToast('success', t('common.success'), res.message || t('circle.leaveSuccess'));
         setActiveCircleId(null);
+        setCircleDetails(null);
         setIsChatFullscreen(false);
         setIsConfirmingLeave(false);
         fetchCircles();
@@ -1168,6 +1594,7 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
       if (res.success) {
         onShowToast('success', t('common.success'), res.message || t('circle.deleteSuccess'));
         setActiveCircleId(null);
+        setCircleDetails(null);
         setIsChatFullscreen(false);
         setIsConfirmingDelete(false);
         fetchCircles();
@@ -1311,6 +1738,7 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
     const messageToSend = (text || newMessageText).trim();
     if (!messageToSend || !activeCircleId) return;
 
+    const repMsg = replyingToMessage;
     // Optimistic message with single grey tick (SENDING)
     const tempId = 'temp-' + Date.now();
     const tempMsg = {
@@ -1320,20 +1748,29 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
       sender_name: user?.fullName || 'সাথী',
       message_type: 'TEXT',
       content: messageToSend,
+      reply_to_id: repMsg?.id || null,
+      reply_to_sender: repMsg?.sender_name || null,
+      reply_to_content: repMsg?.content || null,
       status: 'SENDING',
       read_by: [],
       created_at: new Date().toISOString()
     };
     setMessages(prev => [...prev, tempMsg]);
     setNewMessageText('');
+    setReplyingToMessage(null);
     setIsSendingMessage(true);
 
     try {
       const res = await api.sendCircleMessage(activeCircleId, {
         messageType: 'TEXT',
-        content: messageToSend
+        content: messageToSend,
+        replyToId: repMsg?.id,
+        replyToSender: repMsg?.sender_name,
+        replyToContent: repMsg?.content
       });
-      if (res.success) {
+      if (res.success && res.message) {
+        setMessages(prev => prev.map(m => m.id === tempId ? res.message : m));
+      } else {
         fetchMessages(activeCircleId);
       }
     } catch (err: any) {
@@ -1972,7 +2409,7 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
               <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white shadow">
                 <PhoneCall className="w-4 h-4 animate-pulse text-emerald-100" />
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-slate-900 animate-ping" />
+              <span className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ${isMediaConnected ? 'bg-emerald-400' : 'bg-amber-400'} ring-2 ring-slate-900 animate-ping`} />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
@@ -1984,13 +2421,31 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
                 <span>{isAudioCallConnected ? formatCallTime(callDuration) : (isBn ? 'রিং হচ্ছে...' : 'Ringing...')}</span>
                 <span>•</span>
                 <span className="text-slate-400 font-normal">
-                  {isCallMuted ? (isBn ? 'মিউট' : 'Muted') : (isSpeakerOn ? (isBn ? 'লাউড' : 'Speaker') : (isBn ? 'সক্রিয়' : 'Active'))}
+                  {isCallMuted 
+                    ? (isBn ? 'মিউট' : 'Muted') 
+                    : (isMediaConnected ? (isBn ? 'ভয়েস অন' : 'Voice On') : (isBn ? 'কানেক্ট হচ্ছে...' : 'Connecting...'))}
                 </span>
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            {/* Autoplay blocked recovery in minimized pill */}
+            {isAudioPlaybackBlocked && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEnableAudioPlayback();
+                }}
+                className="px-2.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] flex items-center gap-1 shrink-0 animate-bounce cursor-pointer shadow-md"
+                title={isBn ? "শব্দ শুনতে ট্যাপ করুন" : "Tap to enable audio"}
+              >
+                <Volume2 className="w-3.5 h-3.5 text-slate-950" />
+                <span>{isBn ? 'অডিও চালু' : 'Enable Audio'}</span>
+              </button>
+            )}
+
             {/* Quick Loudspeaker Toggle */}
             <button
               type="button"
@@ -2101,17 +2556,48 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
             <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
               {calledCompanion ? calledCompanion.full_name : (circleDetails?.name || (isBn ? 'সার্কেল ভয়েস কল' : 'Circle Voice Call'))}
             </h2>
-            <p className="text-sm text-emerald-300 font-medium">
-              {callStatus === 'CONNECTED' ? (
-                <span className="text-emerald-400 flex items-center justify-center gap-1.5 font-bold">
-                  🎙️ {isBn ? 'ভয়েস কানেকশন সক্রিয়' : 'Voice connection active'}
-                </span>
-              ) : (
-                <span className="text-amber-300 flex items-center justify-center gap-1.5 font-semibold animate-pulse">
-                  🔔 {isBn ? 'রিং হচ্ছে...' : 'Ringing...'}
-                </span>
+            <div className="space-y-1">
+              <p className="text-sm text-emerald-300 font-medium">
+                {callStatus === 'CONNECTED' ? (
+                  isMediaConnected ? (
+                    <span className="text-emerald-400 flex items-center justify-center gap-1.5 font-bold">
+                      🎙️ {isBn ? 'লাইভ ভয়েস কানেক্টেড' : 'Live Voice Connected'}
+                    </span>
+                  ) : mediaConnectionQuality === 'failed' ? (
+                    <span className="text-rose-400 flex items-center justify-center gap-1.5 font-semibold text-xs">
+                      ⚠️ {isBn ? 'মিডিয়া সংযোগ ব্যর্থ (P2P NAT সমস্যা - টার্ন রিলে প্রয়োজন)' : 'Media connection failed (P2P NAT issue - requires TURN relay)'}
+                    </span>
+                  ) : (
+                    <span className="text-amber-300 flex items-center justify-center gap-1.5 font-semibold text-xs animate-pulse">
+                      🔄 {isBn ? 'অডিও চ্যানেল কানেক্ট হচ্ছে...' : 'Establishing live audio link...'}
+                    </span>
+                  )
+                ) : (
+                  <span className="text-amber-300 flex items-center justify-center gap-1.5 font-semibold animate-pulse">
+                    🔔 {isBn ? 'রিং হচ্ছে...' : 'Ringing...'}
+                  </span>
+                )}
+              </p>
+              {microphoneError && (
+                <p className="text-[11px] text-rose-300 font-medium bg-rose-950/70 border border-rose-800/70 rounded-xl px-3 py-1 max-w-sm mx-auto">
+                  ⚠️ {microphoneError}
+                </p>
               )}
-            </p>
+            </div>
+
+            {/* Autoplay blocked recovery in fullscreen modal */}
+            {isAudioPlaybackBlocked && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handleEnableAudioPlayback}
+                  className="px-4 py-2 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs flex items-center gap-2 shadow-xl shadow-amber-950/60 mx-auto animate-bounce cursor-pointer active:scale-95"
+                >
+                  <Volume2 className="w-4 h-4 text-slate-950" />
+                  <span>{isBn ? 'শব্দ শুনতে এখানে ট্যাপ করুন' : 'Tap Here to Enable Sound'}</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* ACTIVE PARTICIPANTS GRID */}
@@ -2240,6 +2726,20 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
     );
 
     return createPortal(modalContent, document.body);
+  };
+
+  // Persistent audio element to keep remote audio attached across all modal / pill lifecycle states
+  const renderPersistentCallAudio = () => {
+    return createPortal(
+      <audio
+        ref={remoteAudioRef}
+        autoPlay
+        playsInline
+        aria-hidden="true"
+        className="fixed -top-[9999px] -left-[9999px] w-1 h-1 opacity-0 pointer-events-none"
+      />,
+      document.body
+    );
   };
 
   // ==========================================
@@ -2800,7 +3300,7 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
             <div className="flex items-center justify-between text-[11px] text-slate-400">
               <span className="font-bold text-amber-400">{reportingMessage.sender_name || (isBn ? 'সাথী' : 'Companion')}</span>
               <span className="text-[10px] text-slate-500">
-                {reportingMessage.created_at ? new Date(reportingMessage.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                {formatChatTime(reportingMessage.created_at)}
               </span>
             </div>
             <p className="text-xs text-slate-200 line-clamp-3 italic">
@@ -2881,6 +3381,15 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
 
     return createPortal(modalContent, document.body);
   };
+
+  if (activeCircleId && !circleDetails) {
+    return (
+      <div className="max-w-4xl mx-auto p-12 text-center text-slate-400 bg-slate-950/80 rounded-3xl border border-slate-850 flex flex-col items-center justify-center min-h-[60vh] space-y-3 animate-fadeIn">
+        <RefreshCw className="w-8 h-8 animate-spin text-emerald-400" />
+        <p className="text-sm font-bold text-white">{isBn ? 'সার্কেল লোড হচ্ছে...' : 'Loading circle...'}</p>
+      </div>
+    );
+  }
 
   // ==========================================
   // VIEW: FULLSCREEN WHATSAPP / SLACK CHAT VIEW
@@ -2989,6 +3498,30 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
             </div>
           ) : (
             messages.map((msg) => {
+              const isCallLog = msg.message_type === 'CALL_LOG';
+              if (isCallLog) {
+                const call = msg.call_details || {};
+                const isConnected = call.status === 'CONNECTED';
+                return (
+                  <div key={msg.id} className="flex justify-center my-3 relative z-10">
+                    <div className="px-4 py-2.5 rounded-2xl bg-slate-900/90 border border-slate-800 text-xs flex items-center gap-3 shadow-md max-w-xs w-full">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isConnected ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                        <PhoneCall className="w-4 h-4 animate-pulse" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-white truncate">{call.caller_name || msg.sender_name}</span>
+                          <span className="text-[10px] text-slate-400">{formatChatTime(msg.created_at)}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 truncate">
+                          {isConnected ? (isBn ? 'ভয়েস কল সম্পন্ন হয়েছে' : 'Voice call completed') : (isBn ? 'মিসড বা সমাপ্ত কল' : 'Call ended / missed')}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
               const isMe = msg.user_id === user?.id;
               const isNudge = msg.message_type === 'NUDGE';
               const isMilestone = msg.message_type === 'QURAN_MILESTONE';
@@ -3011,16 +3544,33 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
                 );
               }
 
+              let touchStartX = 0;
+
               return (
                 <div 
                   key={msg.id}
                   className={`flex flex-col relative z-10 ${isMe ? 'items-end' : 'items-start'}`}
+                  onTouchStart={(e) => { touchStartX = e.touches[0].clientX; }}
+                  onTouchEnd={(e) => {
+                    const deltaX = e.changedTouches[0].clientX - touchStartX;
+                    if (Math.abs(deltaX) > 65) {
+                      setReplyingToMessage(msg);
+                      onShowToast('info', isBn ? 'রিপ্লাই মোড' : 'Reply Mode', isBn ? `রিপ্লাই দেওয়া হচ্ছে: ${msg.sender_name || 'সাথী'}` : `Replying to message`);
+                    }
+                  }}
                 >
-                  <div className={`max-w-[85%] sm:max-w-[70%] rounded-2xl p-3 shadow-md relative group transition-all ${
-                    isMe 
-                      ? 'bg-[#005c4b] text-emerald-50 rounded-tr-xs border border-emerald-600/30' 
-                      : 'bg-[#1e293b] text-slate-100 rounded-tl-xs border border-slate-700/60'
-                  }`}>
+                  <div 
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setActiveMessageMenu(msg);
+                    }}
+                    onDoubleClick={() => setActiveMessageMenu(msg)}
+                    className={`max-w-[85%] sm:max-w-[70%] rounded-2xl p-3 shadow-md relative group transition-all cursor-pointer ${
+                      isMe 
+                        ? 'bg-[#005c4b] text-emerald-50 rounded-tr-xs border border-emerald-600/30' 
+                        : 'bg-[#1e293b] text-slate-100 rounded-tl-xs border border-slate-700/60'
+                    }`}
+                  >
                     {/* Sender Header for Received Messages with Report Action */}
                     {!isMe && (
                       <div className="flex items-center justify-between gap-2 mb-1">
@@ -3036,12 +3586,23 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
                         </div>
                         <button
                           type="button"
-                          onClick={() => handleOpenReportModal(msg)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenReportModal(msg);
+                          }}
                           className="opacity-60 sm:opacity-0 group-hover:opacity-100 transition-opacity p-1 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded cursor-pointer"
                           title={isBn ? 'বার্তাটি রিপোর্ট করুন' : 'Report this message'}
                         >
                           <Flag className="w-3 h-3" />
                         </button>
+                      </div>
+                    )}
+
+                    {/* Quoted Reply Preview Inside Message Bubble */}
+                    {msg.reply_to_content && (
+                      <div className="mb-2 p-2 rounded-xl bg-black/25 border-l-3 border-amber-400 text-xs shadow-inner">
+                        <p className="font-bold text-amber-300 text-[11px] truncate">{msg.reply_to_sender || (isBn ? 'সাথী' : 'Companion')}</p>
+                        <p className="text-slate-200 truncate text-[11px]">{msg.reply_to_content}</p>
                       </div>
                     )}
 
@@ -3077,11 +3638,66 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
                     {/* Timestamp and WhatsApp Status Ticks */}
                     <div className="flex items-center justify-end gap-1 mt-1 text-[10px] text-slate-300/80 font-mono tabular-nums select-none">
                       <span>
-                        {msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'এখন'}
+                        {formatChatTime(msg.created_at)}
                       </span>
                       {isMe && renderMessageStatusTicks(msg)}
                     </div>
                   </div>
+
+                  {/* Floating Action Popup Card on Long Press / Tap */}
+                  {activeMessageMenu?.id === msg.id && (
+                    <>
+                      <div 
+                        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs" 
+                        onClick={() => setActiveMessageMenu(null)} 
+                      />
+                      <div className="absolute z-50 mt-1.5 p-1.5 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl flex items-center gap-1.5 animate-fadeIn">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReplyingToMessage(msg);
+                            setActiveMessageMenu(null);
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-bold text-slate-200 flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Reply className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>{isBn ? 'রিপ্লাই' : 'Reply'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onShowToast('success', isBn ? 'রিঅ্যাক্ট' : 'Reaction', isBn ? '❤️ প্রতিক্রিয়া যোগ করা হয়েছে' : '❤️ Reaction added');
+                            setActiveMessageMenu(null);
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-bold text-slate-200 flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <span>❤️</span>
+                          <span>{isBn ? 'রিয়েক্ট' : 'React'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveMessageMenu(null);
+                            handleOpenReportModal(msg);
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg hover:bg-slate-800 text-xs font-bold text-rose-400 flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Flag className="w-3.5 h-3.5" />
+                          <span>{isBn ? 'রিপোর্ট' : 'Report'}</span>
+                        </button>
+                        {(String(msg.user_id) === String(user?.id) || members.find(m => String(m.user_id) === String(user?.id))?.role === 'ADMIN') && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMessage(msg.id)}
+                            className="px-2.5 py-1.5 rounded-lg hover:bg-rose-500/20 text-xs font-bold text-rose-400 flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>{isBn ? 'ডিলেট' : 'Delete'}</span>
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               );
             })
@@ -3090,6 +3706,18 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
 
         {/* WhatsApp-Style Sticky Bottom Input Bar */}
         <footer className="p-2 sm:p-3 bg-[#0f172a] border-t border-slate-800 shrink-0 space-y-2">
+          {replyingToMessage && (
+            <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900 border-l-4 border-emerald-500 rounded-xl text-xs">
+              <div className="truncate">
+                <span className="font-bold text-emerald-400 mr-1.5">{replyingToMessage.sender_name}:</span>
+                <span className="text-slate-300 truncate">{replyingToMessage.content}</span>
+              </div>
+              <button type="button" onClick={() => setReplyingToMessage(null)} className="text-slate-400 hover:text-white p-1 cursor-pointer">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* Quick Islamic Phrase Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar pb-1">
             {quickPhrases.map((phrase, idx) => (
@@ -3170,6 +3798,7 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
         {renderCallMembersModal()}
         {renderReportModal()}
         {renderAudioCallModal()}
+        {renderPersistentCallAudio()}
         {renderIncomingCallModal()}
       </div>
     );
@@ -3194,7 +3823,7 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
               {/* Symmetrical Icon Back Button */}
               <button 
                 type="button"
-                onClick={() => setActiveCircleId(null)}
+                onClick={() => { setActiveCircleId(null); setCircleDetails(null); }}
                 className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 hover:border-emerald-500/50 text-slate-200 hover:text-white flex items-center justify-center transition-all cursor-pointer shadow-md active:scale-95 shrink-0"
                 title={isBn ? "সকল সার্কেলে ফিরে যান" : "Back to all circles"}
               >
@@ -3528,13 +4157,19 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
                     ? (user?.photoUrl || m.photo_url || m.photoUrl) 
                     : (m.photo_url || m.photoUrl);
 
+                  // Helper for status
+                  const lastActive = m.last_login_at ? new Date(m.last_login_at) : null;
+                  const now = new Date();
+                  const diffMinutes = lastActive ? Math.floor((now.getTime() - lastActive.getTime()) / 60000) : 1000;
+                  const isActive = diffMinutes < 5; // Consider active if active within 5 mins
+
                   return (
                     <div 
                       key={m.user_id}
                       className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center justify-between gap-3"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white font-black flex items-center justify-center text-xs overflow-hidden shrink-0 border border-emerald-500/30 shadow-md">
+                        <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white font-black flex items-center justify-center text-xs overflow-hidden shrink-0 border border-emerald-500/30 shadow-md">
                           {memberPhoto ? (
                             <img 
                               src={memberPhoto} 
@@ -3547,6 +4182,8 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
                           ) : (
                             <span>{m.full_name?.charAt(0) || 'S'}</span>
                           )}
+                          {/* Status Indicator */}
+                          <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-slate-950 ${isActive ? 'bg-green-500' : 'bg-slate-500'}`} />
                         </div>
                         <div>
                           <div className="flex items-center gap-1.5">
@@ -3555,8 +4192,15 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
                               <span className="text-[10px] text-emerald-400 font-bold">{isBn ? '(আমি)' : '(Me)'}</span>
                             )}
                           </div>
-                          <p className="text-[10px] text-slate-400">
+                          <p className="text-[10px] text-slate-400 flex items-center gap-1">
                             {isMemberAmir ? (isBn ? 'সার্কেল আমীর 👑' : 'Circle Amir 👑') : (isBn ? 'সাথী' : 'Companion')}
+                            <span className={`px-1.5 py-0.5 rounded ${isActive ? 'text-green-400' : 'text-slate-500'}`}>
+                                {isActive ? (isBn ? '• Active' : '• Active') : (
+                                    diffMinutes < 60 ? (isBn ? `• ${diffMinutes}মি আগে` : `• ${diffMinutes}m ago`) : 
+                                    diffMinutes < 1440 ? (isBn ? `• ${Math.floor(diffMinutes/60)}ঘ আগে` : `• ${Math.floor(diffMinutes/60)}h ago`) :
+                                    (isBn ? `• ${Math.floor(diffMinutes/1440)}দিন আগে` : `• ${Math.floor(diffMinutes/1440)}d ago`)
+                                )}
+                            </span>
                           </p>
                         </div>
                       </div>
@@ -3962,6 +4606,7 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
         {/* INVITE & AUDIO CALL & BATTLE & REPORT MODALS */}
         {renderInviteModal()}
         {renderAudioCallModal()}
+        {renderPersistentCallAudio()}
         {renderIncomingCallModal()}
         {renderChallengeModal()}
         {renderBattleStatsModal()}
@@ -4440,7 +5085,7 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
                         {isMyCircle ? (
                           <button
                             type="button"
-                            onClick={() => setActiveCircleId(c.id)}
+                            onClick={() => { setCircleDetails(c); setActiveCircleId(c.id); }}
                             className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-1.5"
                           >
                             <span>{isBn ? 'আমার সার্কেল খুলুন' : 'Open Circle'}</span>
@@ -4495,7 +5140,7 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
               return (
                 <div
                   key={c.id}
-                  onClick={() => setActiveCircleId(c.id)}
+                  onClick={() => { setCircleDetails(c); setActiveCircleId(c.id); }}
                   className="p-4 rounded-3xl bg-slate-950/80 hover:bg-slate-900/80 border border-slate-850 hover:border-emerald-500/30 transition-all shadow-xl relative overflow-hidden flex items-center justify-between gap-3 group cursor-pointer"
                 >
                   <div className="flex items-center gap-3.5 min-w-0 flex-1">
@@ -4724,6 +5369,7 @@ export const CaveCirclesView: React.FC<CaveCirclesViewProps> = ({ onBack, onShow
         </div>
       )}
       {renderAudioCallModal()}
+      {renderPersistentCallAudio()}
       {renderIncomingCallModal()}
       {renderChallengeModal()}
       {renderBattleStatsModal()}

@@ -19,7 +19,8 @@ import {
   ChevronDown,
   Camera,
   RefreshCw,
-  FileText
+  FileText,
+  Heart
 } from 'lucide-react';
 import { api } from '../services/api';
 import { PartnerShop, UserToken, UserRedemptionRecord, TokenType, TokenRedemptionRequest } from '../types';
@@ -897,56 +898,128 @@ const ShopRedemptionModalContent: React.FC<ShopRedemptionModalProps> = ({
                   {language === 'bn' ? 'আপনার কোনো সক্রিয় AVAILABLE টোকেন নেই।' : 'You do not have any active AVAILABLE tokens.'}
                 </div>
               ) : (
-                <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
-                  {availableTokens.map((token, idx) => {
-                    const tier = getTokenTierLabel(token.tokenType);
-                    const isSelected = selectedToken?.id === token.id;
-                    const discount = detectedShop ? getDiscountPercentage(token.tokenType, detectedShop) : 0;
+                <div className="space-y-3 max-h-52 overflow-y-auto pr-1">
+                  {/* Normal Tokens */}
+                  {availableTokens.filter(t => !t.isDonated).length > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5 px-1">
+                        <span className="text-[11px] font-bold text-slate-300">
+                          🏷️ {language === 'bn' ? 'সাধারণ টোকেন (মূল্য ছাড় প্রযোজ্য)' : 'Regular Tokens (Discount Applies)'}
+                        </span>
+                        <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded-full font-bold">
+                          {availableTokens.filter(t => !t.isDonated).length}
+                        </span>
+                      </div>
+                      {availableTokens.filter(t => !t.isDonated).map((token, idx) => {
+                        const tier = getTokenTierLabel(token.tokenType);
+                        const isSelected = selectedToken?.id === token.id;
+                        const discount = detectedShop ? getDiscountPercentage(token.tokenType, detectedShop) : 0;
 
-                    return (
-                      <button
-                        key={`srm-tok-${token.id || 'tok'}-${idx}`}
-                        id={`select-token-option-${token.id}`}
-                        type="button"
-                        onClick={() => setSelectedToken(token)}
-                        className={`w-full p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
-                          isSelected
-                            ? `bg-gradient-to-r ${tier.bg} border-amber-400 ring-2 ring-amber-400/30`
-                            : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <span className="text-xl">{tier.icon}</span>
-                          <div>
-                            <span className={`text-xs font-extrabold ${tier.color} flex items-center gap-1.5 flex-wrap`}>
-                              {tier.name}
-                              {token.isDonated && (
-                                <span className="px-1.5 py-0.2 bg-rose-500/20 text-rose-300 text-[9px] font-black rounded border border-rose-500/40 animate-pulse">
-                                  {language === 'bn' ? 'দান করার জন্য বাছাইকৃত' : 'Designated for Donation'}
+                        return (
+                          <button
+                            key={`srm-norm-${token.id || 'tok'}-${idx}`}
+                            id={`select-token-option-${token.id}`}
+                            type="button"
+                            onClick={() => setSelectedToken(token)}
+                            className={`w-full p-2.5 rounded-2xl border text-left transition-all flex items-center justify-between cursor-pointer ${
+                              isSelected
+                                ? `bg-gradient-to-r ${tier.bg} border-amber-400 ring-2 ring-amber-400/30`
+                                : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-xl">{tier.icon}</span>
+                              <div>
+                                <span className={`text-xs font-extrabold ${tier.color} block`}>
+                                  {tier.name}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono block">
+                                  ID: {token.id} • {language === 'bn' ? 'অর্জিত' : 'Earned'}: {token.earnedDate}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <span className="text-xs font-extrabold text-emerald-400 block">
+                                {formatNum(discount)}% {language === 'bn' ? 'ছাড়' : 'Off'}
+                              </span>
+                              {isSelected && (
+                                <span className="text-[10px] text-amber-300 font-bold flex items-center gap-0.5 justify-end">
+                                  <Check className="w-3 h-3" /> {language === 'bn' ? 'নির্বাচিত' : 'Selected'}
                                 </span>
                               )}
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-mono block">
-                              ID: {token.id} • {language === 'bn' ? 'অর্জিত' : 'Earned'}: {token.earnedDate}
-                            </span>
-                          </div>
-                        </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                        <div className="text-right">
-                          <span className="text-xs font-extrabold text-emerald-400 block">
-                            {token.isDonated 
-                              ? (language === 'bn' ? 'দান হবে' : 'Donated') 
-                              : `${formatNum(discount)}% ${language === 'bn' ? 'ছাড়' : 'Off'}`}
-                          </span>
-                          {isSelected && (
-                            <span className="text-[10px] text-amber-300 font-bold flex items-center gap-0.5 justify-end">
-                              <Check className="w-3 h-3" /> {language === 'bn' ? 'নির্বাচিত' : 'Selected'}
-                            </span>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
+                  {/* Donated Tokens */}
+                  {availableTokens.filter(t => t.isDonated).length > 0 && (
+                    <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-[11px] font-bold text-rose-400 flex items-center gap-1">
+                          <Heart className="w-3 h-3 fill-current text-rose-500 animate-pulse" />
+                          <span>{language === 'bn' ? 'আপনার দানকৃত টোকেন (নির্ধারিত মূল্যে ক্রয়)' : 'Donated Tokens (No Discount)'}</span>
+                        </span>
+                        <span className="text-[9px] bg-rose-950/60 text-rose-300 border border-rose-800 px-1.5 py-0.2 rounded-full font-bold">
+                          {availableTokens.filter(t => t.isDonated).length}
+                        </span>
+                      </div>
+                      {availableTokens.filter(t => t.isDonated).map((token, idx) => {
+                        const tier = getTokenTierLabel(token.tokenType);
+                        const isSelected = selectedToken?.id === token.id;
+                        const discount = detectedShop ? getDiscountPercentage(token.tokenType, detectedShop) : 0;
+
+                        return (
+                          <button
+                            key={`srm-don-${token.id || 'tok'}-${idx}`}
+                            id={`select-token-option-${token.id}`}
+                            type="button"
+                            onClick={() => setSelectedToken(token)}
+                            className={`w-full p-2.5 rounded-2xl border text-left transition-all flex items-center justify-between cursor-pointer ${
+                              isSelected
+                                ? 'bg-rose-950/40 border-rose-500 ring-2 ring-rose-500/30'
+                                : 'bg-slate-950/60 border-rose-900/40 hover:border-rose-700/60'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-xl">{tier.icon}</span>
+                              <div>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className={`text-xs font-extrabold ${tier.color}`}>
+                                    {tier.name}
+                                  </span>
+                                  <span className="px-1.5 py-0.2 bg-rose-600 text-white text-[9px] font-black rounded flex items-center gap-0.5">
+                                    <Heart className="w-2.5 h-2.5 fill-current" />
+                                    {language === 'bn' ? 'দানকৃত টোকেন' : 'Donated'}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] text-rose-300/80 font-mono block">
+                                  {language === 'bn' ? 'কোনো ছাড় নেই • পূর্ণ মূল্যে ক্রয়' : 'No discount • Full Price'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <span className="text-xs font-black text-rose-400 block">
+                                ৳ দান হবে ❤️
+                              </span>
+                              <span className="text-[10px] text-slate-400 block">
+                                ({formatNum(discount)}% {language === 'bn' ? 'ছাড়ের সমপরিমাণ' : 'equiv'})
+                              </span>
+                              {isSelected && (
+                                <span className="text-[10px] text-rose-300 font-bold flex items-center gap-0.5 justify-end">
+                                  <Check className="w-3 h-3" /> {language === 'bn' ? 'নির্বাচিত' : 'Selected'}
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1031,8 +1104,8 @@ const ShopRedemptionModalContent: React.FC<ShopRedemptionModalProps> = ({
                       <span>❤️</span>
                       <span>
                         {language === 'bn'
-                          ? 'এই টোকেনটি ব্যবহার করলে ডিসকাউন্ট সরাসরি মসজিদ কল্যাণ তহবিলে চলে যাবে (আপনি রেগুলার মূল্যে পণ্য কিনবেন)।'
-                          : 'Using this token routes the discount directly to the mosque welfare fund (you pay the regular item price).'}
+                          ? 'এই টোকেনটি দানকৃত হওয়ায় আপনি কোনো মূল্য ছাড় পাবেন না এবং সম্পূর্ণ নির্ধারিত মূল্যে পণ্য কিনছেন। আপনার প্রাপ্য ছাড়ের সমপরিমাণ অর্থ কেভ কম্প্যানিয়ন্স থেকে কেন্দ্রীয় কল্যাণ তহবিলে দান হবে এবং আপনার কেভ জার্নিতে যোগ হবে।'
+                          : 'As this is a donated token, you receive no discount and pay full regular price. The waived discount amount is donated to the Central Welfare Fund and recorded in your Cave Journey.'}
                       </span>
                     </div>
                   )}

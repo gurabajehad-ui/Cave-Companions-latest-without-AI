@@ -1731,6 +1731,12 @@ export const api = {
       method: 'DELETE'
     }),
 
+  subscribeToPush: (subscription: PushSubscription) =>
+    request<{ success: boolean; message: string }>('/api/notifications/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ subscription })
+    }, true),
+
   deleteAllNotifications: () =>
     request<{
       success: boolean;
@@ -3164,6 +3170,16 @@ export const api = {
       body: JSON.stringify({ weightKg })
     }),
 
+  updateCartItemToken: (itemId: string, tokenId: string | null) =>
+    request<{
+      success: boolean;
+      message: string;
+      cart: import('../types').CartSummary;
+    }>(`/api/cart/items/${itemId}/token`, {
+      method: 'PATCH',
+      body: JSON.stringify({ tokenId })
+    }),
+
   removeCartItem: (itemId: string) =>
     request<{
       success: boolean;
@@ -3512,9 +3528,11 @@ export const api = {
   notifyCircle: (id: string, data: { type: 'REMINDER' | 'ENCOURAGEMENT' | 'NOSIHA', message?: string }) => 
     request<{ success: boolean; message: string }>(`/api/circles/${id}/notify`, { method: 'POST', body: JSON.stringify(data) }),
   getCircleMessages: (id: string) =>
-    request<{ success: boolean; messages: any[] }>(`/api/circles/${id}/messages`),
-  sendCircleMessage: (id: string, data: { messageType?: 'TEXT' | 'NUDGE' | 'AUDIO' | 'QURAN_MILESTONE'; content?: string; audioUrl?: string; audioDurationSec?: number }) =>
+    request<{ success: boolean; messages: any[]; calls?: any[] }>(`/api/circles/${id}/messages`),
+  sendCircleMessage: (id: string, data: { messageType?: 'TEXT' | 'NUDGE' | 'AUDIO' | 'QURAN_MILESTONE'; content?: string; audioUrl?: string; audioDurationSec?: number; replyToId?: string; replyToSender?: string; replyToContent?: string }) =>
     request<{ success: boolean; message: any }>(`/api/circles/${id}/messages`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteCircleMessage: (circleId: string, messageId: string) =>
+    request<{ success: boolean; message: string }>(`/api/circles/${circleId}/messages/${messageId}`, { method: 'DELETE' }),
   getCircleQuranGoals: (id: string) =>
     request<{ success: boolean; goal: any }>(`/api/circles/${id}/quran-goals`),
   toggleCircleQuranJuz: (id: string, juzNumber: number) =>
@@ -3556,6 +3574,20 @@ export const api = {
     request<{ success: boolean; message: string }>(`/api/circles/calls/${callId}/decline`, { method: 'POST' }),
   endCircleCall: (callId: string) =>
     request<{ success: boolean; message: string }>(`/api/circles/calls/${callId}/end`, { method: 'POST' }),
+  sendCallSignal: (callId: string, data: { type: string; payload: string }) =>
+    request<{ success: boolean }>(`/api/circles/calls/${callId}/signal`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    }),
+  getCallSignals: (callId: string, afterId: number) =>
+    request<{ success: boolean; signals: any[] }>(`/api/circles/calls/${callId}/signal?after=${afterId}`),
+  sendCallAudioChunk: (callId: string, data: { chunk: string; mimeType?: string }) =>
+    request<{ success: boolean; chunkId?: number }>(`/api/circles/calls/${callId}/audio-chunk`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    }),
+  getCallAudioChunks: (callId: string, afterId: number) =>
+    request<{ success: boolean; chunks: any[] }>(`/api/circles/calls/${callId}/audio-chunks?after=${afterId}`),
 
   // Cave Circle User Reporting API
   reportCircleMessage: (circleId: string, messageId: string, data: { category: string; description?: string }) =>

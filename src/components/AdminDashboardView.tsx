@@ -98,6 +98,7 @@ import { SecurityDiagnostic } from './SecurityDiagnostic';
 import { AdminQuarantineView } from './AdminQuarantineView';
 import { AdminProductApprovalView } from './AdminProductApprovalView';
 import { AdminOverviewTab } from './AdminOverviewTab';
+import { AdminCircleModerationView } from './AdminCircleModerationView';
 
 interface AdminUserWithStats extends User {
   totalPrayers: number;
@@ -332,6 +333,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   onBack,
   onShowToast
 }) => {
+  const isBn = true;
   // Admin authentication state
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
     return !!getStoredAdminToken();
@@ -378,8 +380,9 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
     if (permission === 'NASIHA_VIEW' && adminPermissions.includes('NASIHA_VIEW')) return true;
     if (permission === 'HELPLINE_VIEW' && adminPermissions.includes('HELPLINE_VIEW')) return true;
     if (permission === 'SYSTEM_VIEW' && adminPermissions.includes('SYSTEM_VIEW')) return true;
-    if (permission === 'SECURITY_DIAGNOSTIC_VIEW' && adminPermissions.includes('SYSTEM_VIEW')) return true;
     if (permission === 'NOTIFICATION_VIEW' && adminPermissions.includes('NOTIFICATION_VIEW')) return true;
+    if ((permission === 'MODERATION_VIEW' || permission === 'circle-moderation') && 
+        (adminPermissions.includes('MODERATION_VIEW') || adminPermissions.includes('SYSTEM_VIEW') || adminPermissions.includes('SUPPORT_VIEW') || adminPermissions.includes('USER_VIEW') || adminRole === 'MASTER_ADMIN' || adminRole === 'MODERATOR')) return true;
     
     return false;
   };
@@ -396,7 +399,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
       'dashboard', 'analytics', 'product-approvals', 'pending-offers', 'pending-commission', 'accounts', 'orders', 
       'online-accounts', 'coupons', 'delivery-charge', 'riders', 'mosques', 'shops', 
       'users', 'tickets', 'admin-management', 'ads', 'nasiha', 'blog', 'helpline', 'menu', 'quarantine',
-      'security-diagnostic', 'notification-templates'
+      'security-diagnostic', 'notification-templates', 'circle-moderation'
     ];
 
     if (path.startsWith('/admin/')) {
@@ -499,6 +502,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
   const [mosqueRejectReason, setMosqueRejectReason] = useState('');
   const [isRejectingMosque, setIsRejectingMosque] = useState(false);
   const [pendingProductRequestsCount, setPendingProductRequestsCount] = useState<number>(0);
+  const [pendingModerationReportsCount, setPendingModerationReportsCount] = useState<number>(0);
 
   useEffect(() => {
     const fetchPendingProductCount = async () => {
@@ -511,7 +515,27 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
         // silent catch
       }
     };
+    const fetchPendingModerationCount = async () => {
+      try {
+        const token = getStoredAdminToken();
+        if (!token) return;
+        const res = await fetch('/api/admin/moderation/queue', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+          }
+        });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.reports)) {
+          setPendingModerationReportsCount(data.reports.length);
+        }
+      } catch (e) {
+        // silent catch
+      }
+    };
+
     fetchPendingProductCount();
+    fetchPendingModerationCount();
   }, [activeTab]);
 
   useEffect(() => {
@@ -851,6 +875,10 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
         onClick: () => {
           setSelectedMerchantVerification(v);
           setActiveTab('pending-merchants');
+          const targetId = v.id || v.merchantId || v.shopId;
+          if (targetId) {
+            handleSelectMerchantVerification(targetId);
+          }
           setIsNotificationMenuOpen(false);
         }
       });
@@ -867,6 +895,10 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
           badge: 'পার্টনার শপ',
           onClick: () => {
             setActiveTab('pending-merchants');
+            const targetId = s.id || (s as any).shopId;
+            if (targetId) {
+              handleSelectMerchantVerification(targetId);
+            }
             setIsNotificationMenuOpen(false);
           }
         });
@@ -935,8 +967,23 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
       });
     });
 
+    // 7. Circle Moderation Reports
+    if (pendingModerationReportsCount > 0) {
+      list.push({
+        id: 'pending-moderation-reports',
+        category: 'ticket',
+        title: `${toBnNumber(pendingModerationReportsCount)}টি সার্কেল মেসেজ রিপোর্ট এসেছে`,
+        description: 'ব্যবহারকারীদের সার্কেল চ্যাট রিপোর্ট পর্যালোচনা করে সিদ্ধান্ত নিন',
+        badge: 'মডারেশন',
+        onClick: () => {
+          setActiveTab('circle-moderation');
+          setIsNotificationMenuOpen(false);
+        }
+      });
+    }
+
     return list;
-  }, [pendingMosquesList, merchantVerifications, pendingMerchants, adminRiders, pendingProductRequestsCount, commissionChangeRequests, pendingOffers, tickets]);
+  }, [pendingMosquesList, merchantVerifications, pendingMerchants, adminRiders, pendingProductRequestsCount, pendingModerationReportsCount, commissionChangeRequests, pendingOffers, tickets]);
 
   const adminNotifications = useMemo(() => {
     return adminNotificationsRaw.filter(item => !dismissedNotificationIds.includes(item.id));
@@ -2724,6 +2771,28 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
               </button>
             )}
 
+            {(hasPermission('MODERATION_VIEW') || hasPermission('SYSTEM_VIEW') || hasPermission('USER_VIEW') || hasPermission('SUPPORT_VIEW') || adminRole === 'MASTER_ADMIN' || adminRole === 'MODERATOR' || adminRole === 'ADMIN') && (
+              <button
+                onClick={() => { setActiveTab('circle-moderation'); setIsMobileSidebarOpen(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'circle-moderation'
+                    ? 'bg-[#e59b20] text-slate-950 font-black shadow-lg shadow-amber-500/20'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                }`}
+                title={isBn ? 'সার্কেল মডারেশন ও রিপোর্ট' : 'Circle Moderation & Reports'}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <ShieldAlert className="w-4 h-4 shrink-0 text-amber-400" />
+                  {!isSidebarCollapsed && <span className="truncate">{isBn ? 'সার্কেল মডারেশন' : 'Circle Moderation'}</span>}
+                </div>
+                {!isSidebarCollapsed && pendingModerationReportsCount > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-rose-500 text-white text-[10px] font-black shrink-0 animate-pulse">
+                    {pendingModerationReportsCount}
+                  </span>
+                )}
+              </button>
+            )}
+
             {hasPermission('ADMIN_VIEW') && (
               <button
                 onClick={() => { setActiveTab('admin-management'); setIsMobileSidebarOpen(false); }}
@@ -3155,7 +3224,8 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
                 pendingRiders: adminRiders.filter(r => r.approvalStatus === 'PENDING').length || 3,
                 pendingAdmins: adminAccounts.filter(a => a.status === 'PENDING').length || 2,
                 pendingOffers: totalPendingOffersCount,
-                openTickets: tickets.filter(t => t.status === 'OPEN').length
+                openTickets: tickets.filter(t => t.status === 'OPEN').length,
+                pendingModerationReports: pendingModerationReportsCount
               }}
               recentOrders={adminOrders}
               onNavigateTab={(tab) => {
@@ -6284,6 +6354,15 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             setIsAdminAuthenticated(false);
             removeStoredAdminToken();
           }} />
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* SECTION: CIRCLE MODERATION                                */}
+      {/* ========================================================= */}
+      {activeTab === 'circle-moderation' && !selectedMerchantVerification && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <AdminCircleModerationView onShowToast={(type, title, msg) => onShowToast(type, title, msg)} isBn={isBn} />
         </div>
       )}
 

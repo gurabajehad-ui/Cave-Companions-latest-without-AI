@@ -165,11 +165,31 @@
       "updatedAt": "2026-10-11T08:19:21.490Z"
     }
   ],
-  "merchants": [],
-  "redemptions": [],
+  "products": [],
+  "advertisements": [],
   "notifications": [],
-  "supportTickets": [],
-  "adminAccounts": [],
-  "auditLogs": [],
-  "nasiha": []
+  "support_tickets": [],
+  "admin_accounts": [],
+  "nasiha": [],
+  "blogs": [],
+  "riders": [],
+  "orders": [],
+  "global_config": [
+    {
+      "gold_discount_rate": 15,
+      "silver_discount_rate": 10,
+      "bronze_discount_rate": 7,
+      "updated_at": "2026-10-22T09:23:54.812Z"
+    }
+  ],
+  "otps": [
+    {
+      "id": "01334015936",
+      "col_0": "01334015936",
+      "col_1": "6c17db4779437b57cfda1fd3f67562de3f19cdb726679aaa843eac5c599c3c75",
+      "col_2": "REGISTRATION_VERIFICATION",
+      "col_3": 1792661634726,
+      "col_4": "{\"fullName\":\"Test User\",\"phone\":\"01334015936\"}"
+    }
+  ]
 }

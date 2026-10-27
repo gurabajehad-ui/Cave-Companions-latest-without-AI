@@ -21,7 +21,11 @@ import {
   Loader2,
   VolumeX,
   RotateCcw,
-  ArrowRight
+  ArrowRight,
+  Smartphone,
+  Send,
+  Info,
+  ShieldCheck
 } from 'lucide-react';
 import { api } from '../services/api';
 import { NotificationItem, NotificationType } from '../types';
@@ -46,6 +50,119 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Device Push Notification States
+  const [permissionStatus, setPermissionStatus] = useState<NotificationPermission>(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission;
+    }
+    return 'denied';
+  });
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false);
+  const [isSendingTest, setIsSendingTest] = useState(false);
+  const [showNotificationGuide, setShowNotificationGuide] = useState(false);
+
+  const handleRequestDevicePermission = async () => {
+    if (!('Notification' in window)) {
+      onShowToast('error', 'অসমর্থিত ডিভাইস', 'আপনার ব্রাউজার বা ডিভাইসে নোটিফিকেশন সাপোর্ট নেই।');
+      return;
+    }
+    try {
+      setIsRequestingPermission(true);
+      const perm = await Notification.requestPermission();
+      setPermissionStatus(perm);
+      if (perm === 'granted') {
+        onShowToast('success', 'অনুমতি সফল', 'ডিভাইস নোটিফিকেশন সফলভাবে চালু করা হয়েছে!');
+        
+        // Subscription logic
+        try {
+          const registration = await navigator.serviceWorker.ready;
+          const vapidPublicKey = 'BDZJ8SbU0aAGWQJD3x19rXlCYokBjGH2hGYUn_XnjGiE9X5DRtp_kTGjSPgb6snMqWeLVxMyyXiaRXylglLD9vQ';
+          const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
+          
+          const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: convertedVapidKey
+          });
+          
+          await api.subscribeToPush(subscription);
+        } catch (subErr) {
+          console.error('Push subscription failed:', subErr);
+        }
+
+        try {
+          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.ready.then(reg => {
+              reg.showNotification('🎉 গুহা সাথী পুশ নোটিফিকেশন চালু হয়েছে', {
+                body: 'এখন থেকে সালাতের ওয়াক্ত, সার্কেল মেসেজ ও অর্ডারের আপডেট আপনার ডিভাইসে সরাসরি পাবেন।',
+                icon: '/app_icon.jpg',
+                badge: '/app_icon.jpg'
+              });
+            });
+          } else {
+            new Notification('🎉 গুহা সাথী পুশ নোটিফিকেশন চালু হয়েছে', {
+              body: 'এখন থেকে সালাতের ওয়াক্ত, সার্কেল মেসেজ ও অর্ডারের আপডেট আপনার ডিভাইসে সরাসরি পাবেন।',
+              icon: '/app_icon.jpg'
+            });
+          }
+        } catch (e) {
+          console.warn('Initial welcome notification failed:', e);
+        }
+      } else if (perm === 'denied') {
+        onShowToast('info', 'অনুমতি মেলেনি', 'ব্রাউজার সেটিংসে (Site Settings -> Notifications) গিয়ে পারমিশন Allow করুন।');
+      }
+    } catch (err: any) {
+      onShowToast('error', 'ত্রুটি', err.message || 'অনুমতি চাওয়া সম্ভব হয়নি।');
+    } finally {
+      setIsRequestingPermission(false);
+    }
+  };
+
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding)
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
+  const handleSendTestNotification = () => {
+    if (!('Notification' in window)) {
+      onShowToast('error', 'অসমর্থিত', 'ব্রাউজার নোটিফিকেশন সাপোর্ট করে না।');
+      return;
+    }
+    if (Notification.permission !== 'granted') {
+      onShowToast('info', 'অনুমতি নেই', 'প্রথমে ডিভাইস নোটিফিকেশন চালু করুন।');
+      return;
+    }
+    setIsSendingTest(true);
+    try {
+      const title = '🕌 টেস্ট নোটিফিকেশন - গুহা সাথী';
+      const options = {
+        body: 'আপনার ডিভাইসে পুশ নোটিফিকেশন সঠিকভাবে কাজ করছে! আলহামদুলিল্লাহ।',
+        icon: '/app_icon.jpg',
+        badge: '/app_icon.jpg',
+        vibrate: [200, 100, 200]
+      };
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.ready.then(reg => {
+          reg.showNotification(title, options);
+        });
+      } else {
+        new Notification(title, options);
+      }
+      onShowToast('success', 'পাঠানো হয়েছে', 'আপনার ডিভাইসে টেস্ট নোটিফিকেশন পাঠানো হয়েছে।');
+    } catch (err) {
+      onShowToast('error', 'ব্যর্থ', 'নোটিফিকেশন পাঠাতে সমস্যা হয়েছে।');
+    } finally {
+      setTimeout(() => setIsSendingTest(false), 800);
+    }
+  };
 
   const fetchNotifications = async () => {
     try {
@@ -250,6 +367,94 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({
             )
           )}
         </div>
+      </div>
+
+      {/* Device Push Notification Status & Test Banner */}
+      <div className={`p-4 rounded-2xl border transition-all ${
+        permissionStatus === 'granted'
+          ? 'bg-emerald-950/20 border-emerald-500/30'
+          : 'bg-amber-950/25 border-amber-500/30'
+      }`}>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+              permissionStatus === 'granted'
+                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+            }`}>
+              <Smartphone className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-xs sm:text-sm font-bold text-white">
+                  {permissionStatus === 'granted'
+                    ? 'ডিভাইস পুশ নোটিফিকেশন চালু রয়েছে'
+                    : 'ডিভাইসে পুশ নোটিফিকেশন পেতে চান?'}
+                </h3>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  permissionStatus === 'granted'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                    : 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                }`}>
+                  {permissionStatus === 'granted' ? 'সক্রিয় (Active)' : 'অনুমতি প্রয়োজন'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {permissionStatus === 'granted'
+                  ? 'সালাতের ওয়াক্ত, সার্কেল মেসেজ ও অর্ডারের আপডেট সরাসরি আপনার ডিভাইসের নোটিফিকেশন বারে আসছে।'
+                  : 'অ্যাপ বন্ধ থাকলেও সালাত ও সার্কেল বার্তার সরাসরি আপডেট পেতে ব্রাউজার নোটিফিকেশন চালু করুন।'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
+            {permissionStatus === 'granted' ? (
+              <button
+                type="button"
+                onClick={handleSendTestNotification}
+                disabled={isSendingTest}
+                className="w-full sm:w-auto px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {isSendingTest ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                <span>টেস্ট নোটিফিকেশন পাঠান</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleRequestDevicePermission}
+                disabled={isRequestingPermission}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
+              >
+                {isRequestingPermission ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
+                <span>নোটিফিকেশন অন করুন</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowNotificationGuide(!showNotificationGuide)}
+              className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition-colors cursor-pointer shrink-0"
+              title="সাহায্য ও তথ্য"
+            >
+              <Info className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Collapsible Info / Troubleshooting */}
+        {showNotificationGuide && (
+          <div className="mt-3 pt-3 border-t border-slate-800/80 text-[11px] text-slate-300 space-y-1.5 animate-fadeIn">
+            <p className="font-bold text-amber-400 flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>মোবাইল ডিভাইসে নোটিফিকেশন না আসলে কি করবেন?</span>
+            </p>
+            <ul className="list-disc list-inside space-y-1 text-slate-400 pl-1">
+              <li><strong>ব্রাউজার পারমিশন:</strong> ব্রাউজারের উপরে তালার চিহ্নে (Lock icon) ক্লিক করে Notification "Allow" আছে কিনা চেক করুন।</li>
+              <li><strong>মোবাইলের ব্যাটারি অপ্টিমাইজেশন:</strong> ফোনের Settings -&gt; Apps -&gt; Chrome/Browser -&gt; Battery-তে গিয়ে "Unrestricted" বা Don't Optimize দিন যাতে ব্যাকগ্রাউন্ডে নোটিফিকেশন বন্ধ না হয়।</li>
+              <li><strong>হোম স্ক্রিনে যুক্ত করুন (PWA):</strong> সেরা পারফরম্যান্সের জন্য ব্রাউজার মেনু থেকে "Install App" বা "Add to Home Screen" করুন।</li>
+            </ul>
+          </div>
+        )}
       </div>
 
       {/* Filter Tabs */}

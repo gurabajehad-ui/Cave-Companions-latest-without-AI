@@ -5,6 +5,7 @@ import { query, useSqliteFallback } from '../pg.js';
 import { circleTextMessageRateLimiter } from '../rateLimiter.js';
 import { moderationPipeline } from '../moderation/ModerationPipeline.js';
 import crypto from 'crypto';
+import { NotificationService } from '../services/notificationService.js';
 
 export const circleRoutes = express.Router();
 
@@ -227,6 +228,58 @@ async function ensureBattlesTable() {
         battlesTableChecked = true;
     } catch (e) {
         console.warn('Could not auto-create circle_battles table:', e);
+    }
+}
+
+let activeCallsTableChecked = false;
+async function ensureActiveCallsTables() {
+    if (activeCallsTableChecked) return;
+    try {
+        await query(`
+            CREATE TABLE IF NOT EXISTS circle_active_calls (
+                id VARCHAR(255) PRIMARY KEY,
+                circle_id VARCHAR(255) NOT NULL REFERENCES circles(id) ON DELETE CASCADE,
+                caller_user_id VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                caller_name VARCHAR(255) NOT NULL,
+                caller_photo_url TEXT,
+                target_user_id VARCHAR(255),
+                status VARCHAR(50) NOT NULL DEFAULT 'RINGING',
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                connected_at TIMESTAMP WITH TIME ZONE,
+                ended_at TIMESTAMP WITH TIME ZONE
+            );
+            CREATE INDEX IF NOT EXISTS idx_circle_active_calls_status ON circle_active_calls(status, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_circle_active_calls_target ON circle_active_calls(target_user_id, status);
+            CREATE INDEX IF NOT EXISTS idx_circle_active_calls_circle ON circle_active_calls(circle_id, status);
+
+            CREATE TABLE IF NOT EXISTS circle_call_signals (
+                id SERIAL PRIMARY KEY,
+                call_id VARCHAR(255) NOT NULL REFERENCES circle_active_calls(id) ON DELETE CASCADE,
+                sender_id VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                signal_type VARCHAR(50) NOT NULL,
+                payload TEXT NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_circle_call_signals_call ON circle_call_signals(call_id, created_at);
+        `);
+        activeCallsTableChecked = true;
+    } catch (e) {
+        console.warn('Could not auto-create active calls tables:', e);
+    }
+}
+
+let messagesReplyColumnsChecked = false;
+async function ensureMessagesReplyColumns() {
+    if (messagesReplyColumnsChecked) return;
+    try {
+        await query(`
+            ALTER TABLE circle_messages ADD COLUMN IF NOT EXISTS reply_to_id VARCHAR(255);
+            ALTER TABLE circle_messages ADD COLUMN IF NOT EXISTS reply_to_sender VARCHAR(255);
+            ALTER TABLE circle_messages ADD COLUMN IF NOT EXISTS reply_to_content TEXT;
+        `);
+        messagesReplyColumnsChecked = true;
+    } catch (e) {
+        console.warn('Could not add reply columns to circle_messages:', e);
     }
 }
 
@@ -500,6 +553,7 @@ circleRoutes.post('/join', requireAuth, async (req, res) => {
 // Check for Active Incoming Call (Polled globally across the app)
 circleRoutes.get('/active-call', requireAuth, async (req, res) => {
     try {
+        await ensureActiveCallsTables();
         const userId = (req as any).user.id;
 
         // Check for direct calls or group calls in user's circles within last 30 minutes
@@ -842,6 +896,7 @@ circleRoutes.post('/:id/notify', requireAuth, async (req, res) => {
 // GET Circle Messages
 circleRoutes.get('/:id/messages', requireAuth, async (req, res) => {
     try {
+        await ensureActiveCallsTables();
         const userId = (req as any).user.id;
         const circleId = req.params.id;
 
@@ -903,14 +958,25 @@ circleRoutes.get('/:id/messages', requireAuth, async (req, res) => {
 
         const messagesRes = await query(`
             SELECT cm.*, u.full_name, u.gender, u.photo_url 
-            FROM circle_messages cm
+            FROM (
+                SELECT * FROM circle_messages 
+                WHERE circle_id = $1 
+                ORDER BY created_at DESC 
+                LIMIT 150
+            ) cm
             JOIN users u ON cm.user_id = u.id
-            WHERE cm.circle_id = $1
             ORDER BY cm.created_at ASC
-            LIMIT 150
         `, [circleId]);
 
-        res.json({ success: true, messages: messagesRes.rows });
+        const callsRes = await query(`
+            SELECT id, circle_id, caller_user_id, caller_name, caller_photo_url, target_user_id, status, created_at, connected_at, ended_at
+            FROM circle_active_calls
+            WHERE circle_id = $1
+            ORDER BY created_at DESC
+            LIMIT 30
+        `, [circleId]);
+
+        res.json({ success: true, messages: messagesRes.rows, calls: callsRes.rows });
     } catch (error) {
         console.error('Error fetching circle messages:', error);
         res.status(500).json({ success: false, message: 'মেসেজ লোড করা যায়নি' });
@@ -920,9 +986,10 @@ circleRoutes.get('/:id/messages', requireAuth, async (req, res) => {
 // POST Circle Message (Text, Nudge, Audio)
 circleRoutes.post('/:id/messages', requireAuth, circleTextMessageRateLimiter, async (req, res) => {
     try {
+        await ensureMessagesReplyColumns();
         const userId = (req as any).user.id;
         const circleId = req.params.id;
-        const { messageType = 'TEXT', content, audioUrl, audioDurationSec } = req.body;
+        const { messageType = 'TEXT', content, audioUrl, audioDurationSec, replyToId, replyToSender, replyToContent } = req.body;
 
         if (!content && !audioUrl) {
             return res.status(400).json({ success: false, message: 'মেসেজ বা অডিও দেওয়া আবশ্যক' });
@@ -983,6 +1050,9 @@ circleRoutes.post('/:id/messages', requireAuth, circleTextMessageRateLimiter, as
                         message_type: 'TEXT',
                         content: modResult.cleanedText,
                         moderation_status: 'PENDING_REVIEW',
+                        reply_to_id: replyToId || null,
+                        reply_to_sender: replyToSender || null,
+                        reply_to_content: replyToContent || null,
                         created_at: new Date().toISOString()
                     },
                     userNotice: modResult.userFacingMessage || 'আপনার বার্তাটি পর্যালোচনার জন্য জমা রাখা হয়েছে।'
@@ -998,10 +1068,10 @@ circleRoutes.post('/:id/messages', requireAuth, circleTextMessageRateLimiter, as
         }
 
         const insertRes = await query(`
-            INSERT INTO circle_messages (id, circle_id, user_id, sender_name, message_type, content, audio_url, audio_duration_sec, read_by, status, moderation_status, moderation_reason)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '[]'::jsonb, 'SENT', $9, $10)
+            INSERT INTO circle_messages (id, circle_id, user_id, sender_name, message_type, content, audio_url, audio_duration_sec, read_by, status, moderation_status, moderation_reason, reply_to_id, reply_to_sender, reply_to_content)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '[]'::jsonb, 'SENT', $9, $10, $11, $12, $13)
             RETURNING *
-        `, [msgId, circleId, userId, senderName, messageType, textToSave, audioUrl || null, audioDurationSec || null, moderationStatus, moderationReason]);
+        `, [msgId, circleId, userId, senderName, messageType, textToSave, audioUrl || null, audioDurationSec || null, moderationStatus, moderationReason, replyToId || null, replyToSender || null, replyToContent || null]);
 
         // Push real-time notification to all active companions in this circle (except sender)
         try {
@@ -1037,6 +1107,7 @@ circleRoutes.post('/:id/messages', requireAuth, circleTextMessageRateLimiter, as
                         url: '/cave_circle'
                     })
                 ]);
+                await NotificationService.sendPushToUser(c.user_id, `💬 ${circleName} • ${senderName}`, notifMessage);
             }
         } catch (notifErr) {
             console.error('Failed to dispatch companion message notifications:', notifErr);
@@ -1115,6 +1186,46 @@ circleRoutes.post('/:id/messages/:messageId/report', requireAuth, async (req, re
     } catch (error) {
         console.error('Error reporting circle message:', error);
         res.status(500).json({ success: false, message: 'রিপোর্ট জমা দেওয়া সম্ভব হয়নি' });
+    }
+});
+
+// DELETE a Circle Message
+circleRoutes.delete('/:id/messages/:messageId', requireAuth, async (req, res) => {
+    try {
+        const userId = (req as any).user.id;
+        const circleId = req.params.id;
+        const messageId = req.params.messageId;
+
+        const memberCheck = await query(`
+            SELECT role FROM circle_members 
+            WHERE circle_id = $1 AND user_id = $2 AND status = 'ACTIVE'
+        `, [circleId, userId]);
+
+        if (memberCheck.rows.length === 0) {
+            return res.status(403).json({ success: false, message: 'অনুমতি নেই' });
+        }
+
+        const isAdmin = memberCheck.rows[0].role === 'ADMIN';
+
+        const msgCheck = await query(`
+            SELECT user_id FROM circle_messages WHERE id = $1 AND circle_id = $2
+        `, [messageId, circleId]);
+
+        if (msgCheck.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'মেসেজ পাওয়া যায়নি' });
+        }
+
+        const messageAuthorId = msgCheck.rows[0].user_id;
+        if (!isAdmin && String(messageAuthorId) !== String(userId)) {
+            return res.status(403).json({ success: false, message: 'শুধুমাত্র প্রেরক বা আমীর এই মেসেজ ডিলিট করতে পারবেন' });
+        }
+
+        await query(`DELETE FROM circle_messages WHERE id = $1`, [messageId]);
+
+        res.json({ success: true, message: 'মেসেজ মুছে ফেলা হয়েছে' });
+    } catch (error) {
+        console.error('Error deleting circle message:', error);
+        res.status(500).json({ success: false, message: 'মেসেজ মুছে ফেলা সম্ভব হয়নি' });
     }
 });
 
@@ -1297,89 +1408,109 @@ circleRoutes.post('/:id/quran-goals/toggle-juz', requireAuth, async (req, res) =
 
 // Helper: Calculate points for a circle in a battle window
 async function calculateCircleBattlePoints(circleId: string, startTime: Date, endTime: Date) {
-    const startIso = startTime.toISOString();
-    const endIso = endTime.toISOString();
-    const startDateStr = startIso.split('T')[0];
-    const endDateStr = endIso.split('T')[0];
+    try {
+        const startIso = startTime.toISOString();
+        const endIso = endTime.toISOString();
+        const startDateStr = startIso.split('T')[0];
+        const endDateStr = endIso.split('T')[0];
 
-    // 1. Salah Points from prayer_attendances for circle members
-    const salahRes = await query(`
-        SELECT pa.prayer_type, COUNT(*) as count
-        FROM prayer_attendances pa
-        JOIN circle_members cm ON pa.user_id = cm.user_id
-        WHERE cm.circle_id = $1 AND cm.status = 'ACTIVE'
-          AND pa.date >= $2 AND pa.date <= $3
-        GROUP BY pa.prayer_type
-    `, [circleId, startDateStr, endDateStr]);
+        // 1. Salah Points from prayer_attendances for circle members
+        const salahRes = await query(`
+            SELECT pa.prayer_type, COUNT(*) as count
+            FROM prayer_attendances pa
+            JOIN circle_members cm ON pa.user_id = cm.user_id
+            WHERE cm.circle_id = $1 AND cm.status = 'ACTIVE'
+              AND pa.date >= $2 AND pa.date <= $3
+            GROUP BY pa.prayer_type
+        `, [circleId, startDateStr, endDateStr]);
 
-    let salahPoints = 0;
-    let fajrCount = 0;
-    let ishaCount = 0;
-    let otherCount = 0;
-    salahRes.rows.forEach(r => {
-        const c = parseInt(r.count, 10) || 0;
-        if (r.prayer_type === 'fajr') {
-            salahPoints += c * 50;
-            fajrCount += c;
-        } else if (r.prayer_type === 'isha') {
-            salahPoints += c * 40;
-            ishaCount += c;
-        } else {
-            salahPoints += c * 30;
-            otherCount += c;
-        }
-    });
+        let salahPoints = 0;
+        let fajrCount = 0;
+        let ishaCount = 0;
+        let otherCount = 0;
+        salahRes.rows.forEach(r => {
+            const c = parseInt(r.count, 10) || 0;
+            if (r.prayer_type === 'fajr') {
+                salahPoints += c * 50;
+                fajrCount += c;
+            } else if (r.prayer_type === 'isha') {
+                salahPoints += c * 40;
+                ishaCount += c;
+            } else {
+                salahPoints += c * 30;
+                otherCount += c;
+            }
+        });
 
-    // 2. Quran Points: check completed juz in circle_quran_goals
-    const quranGoalsRes = await query(`
-        SELECT completed_juz FROM circle_quran_goals
-        WHERE circle_id = $1
-    `, [circleId]);
+        // 2. Quran Points: check completed juz in circle_quran_goals
+        const quranGoalsRes = await query(`
+            SELECT completed_juz FROM circle_quran_goals
+            WHERE circle_id = $1
+        `, [circleId]);
 
-    let quranPoints = 0;
-    let juzCount = 0;
-    quranGoalsRes.rows.forEach(g => {
-        let list = g.completed_juz || [];
-        if (typeof list === 'string') {
-            try { list = JSON.parse(list); } catch { list = []; }
-        }
-        list.forEach((item: any) => {
-            if (item.completedAt) {
-                const itemTime = new Date(item.completedAt).getTime();
-                if (itemTime >= startTime.getTime() && itemTime <= endTime.getTime()) {
+        let quranPoints = 0;
+        let juzCount = 0;
+        quranGoalsRes.rows.forEach(g => {
+            let list = g.completed_juz || [];
+            if (typeof list === 'string') {
+                try { list = JSON.parse(list); } catch { list = []; }
+            }
+            list.forEach((item: any) => {
+                if (item.completedAt) {
+                    const itemTime = new Date(item.completedAt).getTime();
+                    if (itemTime >= startTime.getTime() && itemTime <= endTime.getTime()) {
+                        quranPoints += 100;
+                        juzCount++;
+                    }
+                } else {
                     quranPoints += 100;
                     juzCount++;
                 }
-            } else {
-                quranPoints += 100;
-                juzCount++;
-            }
+            });
         });
-    });
 
-    // 3. Dhikr / Token Points:
-    const tokenRes = await query(`
-        SELECT COALESCE(SUM(t.amount), 0) as total_tokens
-        FROM tokens t
-        JOIN circle_members cm ON t.user_id = cm.user_id
-        WHERE cm.circle_id = $1 AND cm.status = 'ACTIVE'
-          AND t.created_at >= $2 AND t.created_at <= $3
-    `, [circleId, startIso, endIso]);
-    const dhikrPoints = Math.round(parseFloat(tokenRes.rows[0]?.total_tokens || 0));
+        // 3. Dhikr / Token Points:
+        let dhikrPoints = 0;
+        try {
+            const tokenRes = await query(`
+                SELECT COALESCE(SUM(t.amount), 0) as total_tokens
+                FROM tokens t
+                JOIN circle_members cm ON t.user_id = cm.user_id
+                WHERE cm.circle_id = $1 AND cm.status = 'ACTIVE'
+                  AND t.created_at >= $2 AND t.created_at <= $3
+            `, [circleId, startIso, endIso]);
+            dhikrPoints = Math.round(parseFloat(tokenRes.rows[0]?.total_tokens || 0));
+        } catch {
+            dhikrPoints = 0;
+        }
 
-    const totalPoints = salahPoints + quranPoints + dhikrPoints;
+        const totalPoints = salahPoints + quranPoints + dhikrPoints;
 
-    return {
-        totalPoints,
-        salahPoints,
-        quranPoints,
-        dhikrPoints,
-        fajrCount,
-        ishaCount,
-        otherCount,
-        juzCount
-    };
+        return {
+            totalPoints,
+            salahPoints,
+            quranPoints,
+            dhikrPoints,
+            fajrCount,
+            ishaCount,
+            otherCount,
+            juzCount
+        };
+    } catch (err) {
+        console.error('Error in calculateCircleBattlePoints:', err);
+        return {
+            totalPoints: 0,
+            salahPoints: 0,
+            quranPoints: 0,
+            dhikrPoints: 0,
+            fajrCount: 0,
+            ishaCount: 0,
+            otherCount: 0,
+            juzCount: 0
+        };
+    }
 }
+
 
 // 1. Send Inter-Circle Challenge
 circleRoutes.post('/:id/challenge-battle', requireAuth, async (req, res) => {
@@ -1782,6 +1913,7 @@ circleRoutes.get('/battles/:battleId/stats', requireAuth, async (req, res) => {
 // 1. Initiate Audio Call (Direct or Group Call)
 circleRoutes.post('/:id/calls', requireAuth, async (req, res) => {
     try {
+        await ensureActiveCallsTables();
         const userId = (req as any).user.id;
         const circleId = req.params.id;
         const { targetUserId } = req.body;
@@ -1909,4 +2041,105 @@ circleRoutes.post('/calls/:callId/end', requireAuth, async (req, res) => {
     }
 });
 
+// 7. Post WebRTC Signal (offer, answer, candidate)
+circleRoutes.post('/calls/:callId/signal', requireAuth, async (req, res) => {
+    try {
+        const userId = (req as any).user.id;
+        const callId = req.params.callId;
+        const { type, payload } = req.body;
+
+        await query(`
+            INSERT INTO circle_call_signals (call_id, sender_id, signal_type, payload)
+            VALUES ($1, $2, $3, $4)
+        `, [callId, userId, type, payload]);
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error posting call signal:', error);
+        res.status(500).json({ success: false, message: 'সিগন্যাল পাঠানো যায়নি' });
+    }
+});
+
+// 8. Get WebRTC Signals (fetches signals from other senders for this call)
+circleRoutes.get('/calls/:callId/signal', requireAuth, async (req, res) => {
+    try {
+        const userId = (req as any).user.id;
+        const callId = req.params.callId;
+        const parsedAfter = parseInt(req.query.after as string, 10);
+        const afterId = Number.isFinite(parsedAfter) ? parsedAfter : 0;
+
+        const sigRes = await query(`
+            SELECT id, sender_id, signal_type, payload, created_at
+            FROM circle_call_signals
+            WHERE call_id = $1 AND sender_id != $2 AND id > $3
+            ORDER BY id ASC
+        `, [callId, userId, afterId]);
+
+        res.json({ success: true, signals: sigRes.rows });
+    } catch (error) {
+        console.error('Error getting call signals:', error);
+        res.status(500).json({ success: false, message: 'সিগন্যাল পাওয়া যায়নি' });
+    }
+});
+
+// In-memory audio packet buffer for audio relay fallback
+interface AudioRelayChunk {
+  id: number;
+  callId: string;
+  senderId: string;
+  chunk: string;
+  mimeType?: string;
+  createdAt: number;
+}
+let relayChunkSeq = 0;
+const audioRelayBuffer: AudioRelayChunk[] = [];
+
+// Prune buffer every 5 seconds (chunks older than 20 seconds)
+setInterval(() => {
+  const now = Date.now();
+  while (audioRelayBuffer.length > 0 && now - audioRelayBuffer[0].createdAt > 20000) {
+    audioRelayBuffer.shift();
+  }
+}, 5000);
+
+// 9. Post Audio Relay Chunk (fallback when WebRTC direct P2P is blocked by carrier CGNAT)
+circleRoutes.post('/calls/:callId/audio-chunk', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const callId = req.params.callId;
+    const { chunk, mimeType } = req.body;
+    if (chunk) {
+      relayChunkSeq++;
+      audioRelayBuffer.push({
+        id: relayChunkSeq,
+        callId,
+        senderId: userId,
+        chunk,
+        mimeType: mimeType || 'audio/webm',
+        createdAt: Date.now()
+      });
+      if (audioRelayBuffer.length > 250) {
+        audioRelayBuffer.shift();
+      }
+    }
+    res.json({ success: true, chunkId: relayChunkSeq });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err?.message || 'Audio relay error' });
+  }
+});
+
+// 10. Get Audio Relay Chunks
+circleRoutes.get('/calls/:callId/audio-chunks', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const callId = req.params.callId;
+    const afterId = Number(req.query.after) || 0;
+    const chunks = audioRelayBuffer.filter(c => c.callId === callId && c.senderId !== userId && c.id > afterId);
+    res.json({ success: true, chunks });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err?.message || 'Audio relay fetch error' });
+  }
+});
+
 export default circleRoutes;
+

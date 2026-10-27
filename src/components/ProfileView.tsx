@@ -285,7 +285,7 @@ export const ProfileView: React.FC<ProfileViewProps> = React.memo(({
   if (!user) return null;
 
   return (
-    <div className="w-full space-y-3.5 pb-24 text-slate-100 select-none">
+    <div className="w-full space-y-2 pb-2 text-slate-100 select-none">
       
       {/* 1. Top Profile Hero Card matching Screenshot */}
       <div 

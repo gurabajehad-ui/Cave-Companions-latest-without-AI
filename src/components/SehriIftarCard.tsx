@@ -187,10 +187,10 @@ export const SehriIftarCard: React.FC<SehriIftarCardProps> = React.memo(({ userD
   return (
     <div 
       style={{ contain: 'layout style', transform: 'translateZ(0)' }}
-      className="w-full rounded-2xl border border-[#0c4334] bg-[#022119] p-3.5 shadow-sm text-white"
+      className="w-full rounded-2xl sm:rounded-3xl border border-[#0c4334] bg-[#022119] p-3.5 sm:p-4 shadow-sm text-white"
     >
       {/* Header */}
-      <div className="flex items-center justify-between pb-2.5 border-b border-[#0a4838] text-xs">
+      <div className="flex items-center justify-between pb-2 border-b border-[#0a4838] text-xs">
         <span className="font-bold text-slate-100 flex items-center gap-1.5">
           {language === 'bn' ? 'সাহরি ও ইফতার' : 'Sehri & Iftar'}
         </span>
@@ -210,10 +210,10 @@ export const SehriIftarCard: React.FC<SehriIftarCardProps> = React.memo(({ userD
           {language === 'bn' ? 'সময়সূচী হিসেব হচ্ছে...' : 'Calculating timetable...'}
         </div>
       ) : sehriIftarData ? (
-        <div className="grid grid-cols-2 gap-3 pt-2.5">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 pt-2">
           {/* Sehri */}
-          <div className="flex items-center gap-2.5 p-2 rounded-xl bg-[#033024] border border-[#0a4838]">
-            <div className="p-1.5 rounded-lg bg-[#043f2f] text-amber-300 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 p-2.5 rounded-xl bg-[#033024] border border-[#0a4838]">
+            <div className="p-2 rounded-lg bg-[#043f2f] text-amber-300 shrink-0">
               <Moon className="w-3.5 h-3.5" />
             </div>
             <div className="flex flex-col min-w-0">
@@ -227,8 +227,8 @@ export const SehriIftarCard: React.FC<SehriIftarCardProps> = React.memo(({ userD
           </div>
 
           {/* Iftar */}
-          <div className="flex items-center gap-2.5 p-2 rounded-xl bg-[#033024] border border-[#0a4838]">
-            <div className="p-1.5 rounded-lg bg-[#043f2f] text-amber-300 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 p-2.5 rounded-xl bg-[#033024] border border-[#0a4838]">
+            <div className="p-2 rounded-lg bg-[#043f2f] text-amber-300 shrink-0">
               <Sunset className="w-3.5 h-3.5" />
             </div>
             <div className="flex flex-col min-w-0">

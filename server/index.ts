@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 
+
 // Prevent EPIPE / stream errors from crashing Node process when stdout/stderr pipes close
 if (process.stdout && typeof process.stdout.on === 'function') {
   process.stdout.on('error', (err: any) => {
@@ -16,12 +17,14 @@ if (process.stderr && typeof process.stderr.on === 'function') {
 }
 
 process.on('uncaughtException', (err: any) => {
-  if (err && (err.code === 'EPIPE' || err.code === 'EOF' || err.code === 'ECONNRESET')) return;
+  const msg = String(err?.message || err);
+  if (err && (err.code === 'EPIPE' || err.code === 'EOF' || err.code === 'ECONNRESET' || msg.includes('Connection terminated unexpectedly'))) return;
   console.error('Uncaught Exception:', err);
 });
 
 process.on('unhandledRejection', (reason: any) => {
-  if (reason && (reason.code === 'EPIPE' || reason.code === 'EOF' || reason.code === 'ECONNRESET')) return;
+  const msg = String(reason?.message || reason);
+  if (reason && (reason.code === 'EPIPE' || reason.code === 'EOF' || reason.code === 'ECONNRESET' || msg.includes('Connection terminated unexpectedly'))) return;
   console.error('Unhandled Rejection:', reason);
 });
 
@@ -59,7 +62,9 @@ console.log('==================================================');
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = (process.env.PORT && process.env.PORT !== '8080')
+    ? Number(process.env.PORT)
+    : (Number(process.env.APP_PORT || process.env.DEFAULT_APP_PORT) || 3000);
 
   // Configure trust proxy safely for reverse proxy / Cloud Run container environment
   const rawTrustProxy = process.env.TRUST_PROXY?.trim();
@@ -79,6 +84,7 @@ async function startServer() {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    res.setHeader('Permissions-Policy', 'microphone=*');
     if (req.method === 'OPTIONS') {
       return res.sendStatus(200);
     }

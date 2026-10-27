@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db.js';
+import { query } from '../pg.js';
 import { requireAuth } from '../auth.js';
 
 export const notificationRoutes = Router();
@@ -118,6 +119,33 @@ notificationRoutes.delete('/', requireAuth, async (req, res) => {
     });
   } catch (err: any) {
     console.error('Error deleting all notifications:', err);
+    res.status(500).json({ success: false, message: 'সার্ভার সমস্যা।' });
+  }
+});
+
+/**
+ * POST /api/notifications/subscribe
+ * Subscribe to push notifications.
+ */
+notificationRoutes.post('/subscribe', requireAuth, async (req, res) => {
+  try {
+    const userId = (req as any).user.id;
+    const { subscription } = req.body;
+
+    if (!subscription) {
+      return res.status(400).json({ success: false, message: 'Subscription data required' });
+    }
+
+    await query(
+      `INSERT INTO notification_subscriptions (user_id, subscription)
+       VALUES ($1, $2)
+       ON CONFLICT (user_id) DO UPDATE SET subscription = $2`,
+      [userId, JSON.stringify(subscription)]
+    );
+
+    res.json({ success: true, message: 'সফলভাবে সাবস্ক্রাইব করা হয়েছে' });
+  } catch (err: any) {
+    console.error('Error subscribing to notifications:', err);
     res.status(500).json({ success: false, message: 'সার্ভার সমস্যা।' });
   }
 });

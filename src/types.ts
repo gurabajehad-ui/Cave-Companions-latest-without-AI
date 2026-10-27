@@ -137,8 +137,12 @@ export interface MyTokensResponse {
   dailyRedeemWarning?: string | null;
   availableCount: number;
   availableTokens: UserToken[];
+  normalAvailableTokens?: UserToken[];
+  donatedAvailableTokens?: UserToken[];
   usedCount: number;
   usedTokens: UserToken[];
+  donatedCount?: number;
+  donatedTokens?: UserToken[];
   gracePeriod?: {
     inGracePeriod: boolean;
     yesterdayDate: string;

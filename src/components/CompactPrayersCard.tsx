@@ -250,10 +250,10 @@ export const CompactPrayersCard: React.FC<CompactPrayersCardProps> = React.memo(
   return (
     <div 
       style={{ contain: 'layout style', transform: 'translateZ(0)' }}
-      className="w-full rounded-2xl border border-[#0c4334] bg-[#022119] text-white shadow-sm overflow-hidden"
+      className="w-full rounded-2xl sm:rounded-3xl border border-[#0c4334] bg-[#022119] text-white shadow-sm overflow-hidden"
     >
       {/* Timeline Header */}
-      <div className="px-4 py-3 border-b border-[#0a4838] flex items-center justify-between">
+      <div className="px-3.5 sm:px-4 py-2.5 border-b border-[#0a4838] flex items-center justify-between">
         <div className="flex items-center gap-2">
           <CalendarDays className="w-4 h-4 text-amber-400 shrink-0" />
           <span className="text-xs sm:text-sm font-bold text-slate-100">
@@ -267,7 +267,7 @@ export const CompactPrayersCard: React.FC<CompactPrayersCardProps> = React.memo(
           <button
             onClick={() => fetchLocation(true)}
             disabled={isRefreshing}
-            className="p-1 rounded bg-[#033024] border border-[#0a4838] text-emerald-300 hover:text-amber-300 transition-colors ml-0.5 cursor-pointer shrink-0"
+            className="p-1 rounded-lg bg-[#033024] border border-[#0a4838] text-emerald-300 hover:text-amber-300 transition-colors ml-0.5 cursor-pointer shrink-0"
             title={t('prayer.refreshLocation')}
           >
             <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -286,7 +286,7 @@ export const CompactPrayersCard: React.FC<CompactPrayersCardProps> = React.memo(
           prayerRows.map((row, idx) => (
             <div
               key={`cpc-row-${row.type}-${idx}`}
-              className={`p-3 sm:px-4 transition-colors ${
+              className={`p-2.5 sm:p-3 sm:px-4 transition-colors ${
                 row.isActive 
                   ? (row.isCompleted ? 'bg-[#033628] border-l-2 border-l-emerald-400' : 'bg-[#033628] border-l-2 border-l-amber-400')
                   : 'hover:bg-[#033024]/40'
@@ -296,7 +296,7 @@ export const CompactPrayersCard: React.FC<CompactPrayersCardProps> = React.memo(
               <div className="flex items-center justify-between gap-2.5">
                 {/* Left: Icon + Name + Rakats */}
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className={`p-1.5 rounded-lg shrink-0 ${
+                  <div className={`p-1.5 rounded-xl shrink-0 ${
                     row.isCompleted
                       ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                       : row.isActive
@@ -319,7 +319,7 @@ export const CompactPrayersCard: React.FC<CompactPrayersCardProps> = React.memo(
                         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${row.isCompleted ? 'bg-emerald-400' : 'bg-amber-400'}`} />
                       )}
                       {row.rakats && (
-                        <span className="text-[9px] px-1 py-0.2 rounded bg-[#033024] text-emerald-200 border border-[#0a4838]">
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-[#033024] text-emerald-200 border border-[#0a4838]">
                           {row.rakats}
                         </span>
                       )}
@@ -333,7 +333,7 @@ export const CompactPrayersCard: React.FC<CompactPrayersCardProps> = React.memo(
                 {/* Right: Action or Status */}
                 <div className="shrink-0 flex items-center">
                   {row.isCompleted ? (
-                    <div className="py-1.5 px-3.5 rounded-lg font-bold text-xs flex items-center gap-1.5 text-white bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 border border-emerald-400 shadow-md shadow-emerald-950/40 select-none">
+                    <div className="py-1.5 px-3 sm:px-3.5 rounded-xl font-bold text-xs flex items-center gap-1.5 text-white bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 border border-emerald-400 shadow-md shadow-emerald-950/40 select-none">
                       <CheckCircle2 className="w-3.5 h-3.5 text-white shrink-0 stroke-[2.5]" />
                       <span>
                         {row.pendingOffline
@@ -347,7 +347,7 @@ export const CompactPrayersCard: React.FC<CompactPrayersCardProps> = React.memo(
                     <button
                       onClick={() => !row.isVerifying && onCompletePrayer(row.config)}
                       disabled={row.isVerifying}
-                      className={`py-1.5 px-3.5 rounded-lg font-black text-xs flex items-center gap-1.5 transition cursor-pointer active:scale-95 shadow-md ${
+                      className={`py-1.5 px-3 sm:px-3.5 rounded-xl font-black text-xs flex items-center gap-1.5 transition cursor-pointer active:scale-95 shadow-md ${
                         row.isVerifying
                           ? 'bg-amber-500/20 text-amber-300 opacity-80 cursor-not-allowed border border-amber-500/30'
                           : row.isActive

@@ -321,35 +321,31 @@ export const CaveMarketView: React.FC = () => {
 
   return (
     <div className="w-full space-y-3.5 pb-24 select-none">
-      {/* Ultra Compact Cave Market Header */}
-      <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-slate-900 rounded-xl sm:rounded-2xl px-3.5 py-2.5 sm:px-4 sm:py-3 text-white border border-emerald-500/30 shadow-md relative overflow-hidden">
-        <div className="flex items-center justify-between gap-3 relative z-10">
-          <div className="min-w-0">
-            {/* Line 1: Title */}
-            <h2 className="text-base sm:text-lg font-black tracking-tight text-white leading-tight flex items-center gap-1.5">
-              <span>{t('market.title')}</span>
-            </h2>
-            {/* Line 2: Subtitle */}
-            <p className="text-[11px] sm:text-xs text-slate-300/90 truncate mt-0.5 font-medium">
-              {language === 'bn' ? 'নিষ্ঠা • স্বচ্ছতা • আমানদারিতা' : 'Sincerity • Transparency • Trustworthiness'}
-            </p>
-          </div>
-
-          {/* Right: Cart Button */}
-          <button
-            id="market-cart-btn"
-            onClick={() => setShowCartModal(true)}
-            className="relative flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black rounded-lg transition shadow-md active:scale-95 cursor-pointer shrink-0"
-          >
-            <ShoppingCart className="w-3.5 h-3.5" />
-            <span>{t('shop.cart')}</span>
-            {cartCount > 0 && (
-              <span className="w-4 h-4 bg-slate-950 text-amber-300 border border-amber-400/40 rounded-full text-[9px] flex items-center justify-center font-black">
-                {language === 'bn' ? toBnNumber(cartCount) : cartCount}
-              </span>
-            )}
-          </button>
+      {/* Top Header written directly on background wall */}
+      <div className="py-1 px-1 text-white flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white leading-tight flex items-center gap-1.5">
+            <span>{t('market.title')}</span>
+          </h2>
+          <p className="text-xs text-emerald-200/80 truncate mt-0.5 font-medium">
+            {language === 'bn' ? 'নিষ্ঠা • স্বচ্ছতা • আমানদারিতা' : 'Sincerity • Transparency • Trustworthiness'}
+          </p>
         </div>
+
+        {/* Right: Cart Button with right-angled corners */}
+        <button
+          id="market-cart-btn"
+          onClick={() => setShowCartModal(true)}
+          className="relative flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black rounded-none transition shadow-md active:scale-95 cursor-pointer shrink-0"
+        >
+          <ShoppingCart className="w-3.5 h-3.5" />
+          <span>{t('shop.cart')}</span>
+          {cartCount > 0 && (
+            <span className="w-4 h-4 bg-slate-950 text-amber-300 border border-amber-400/40 rounded-none text-[9px] flex items-center justify-center font-black">
+              {language === 'bn' ? toBnNumber(cartCount) : cartCount}
+            </span>
+          )}
+        </button>
       </div>
 
       <AdBanner pageName="CAVE_MARKET" placementSlot="TOP" />

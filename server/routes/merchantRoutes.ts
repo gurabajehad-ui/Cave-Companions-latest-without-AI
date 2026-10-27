@@ -428,80 +428,19 @@ merchantRoutes.post('/login', authRateLimiter, async (req, res: Response) => {
       });
       return;
     }
-    if (merchantStatus === 'pending' || merchantStatus === 'pending_approval') {
-      res.status(403).json({
-        success: false,
-        code: 'ACCOUNT_PENDING',
-        message: 'আপনার মার্চেন্ট অ্যাকাউন্ট এখনো পর্যালোচনায় রয়েছে। অ্যাডমিন অনুমোদনের পর সক্রিয় হবে।'
-      });
-      return;
-    }
-    if (merchantStatus === 'rejected') {
-      res.status(403).json({
-        success: false,
-        code: 'ACCOUNT_REJECTED',
-        message: 'আপনার মার্চেন্ট আত্ম-নিবন্ধন আবেদনটি বাতিল করা হয়েছে।'
-      });
-      return;
-    }
-    if (merchantStatus === 'inactive') {
-      res.status(403).json({
-        success: false,
-        code: 'ACCOUNT_INACTIVE',
-        message: 'আপনার মার্চেন্ট অ্যাকাউন্টটি বর্তমানে নিষ্ক্রিয় রয়েছে।'
-      });
-      return;
-    }
-    if (merchantStatus !== 'active') {
-      res.status(403).json({
-        success: false,
-        code: 'ACCOUNT_INACTIVE',
-        message: 'আপনার মার্চেন্ট অ্যাকাউন্টটি এখনও সক্রিয় নয়।'
-      });
-      return;
-    }
 
     // Verify shop existence and shop status
     const shop = merchant.shopId ? await db.getShopById(merchant.shopId) : null;
-    if (!shop) {
-      // Auto-clean any orphan merchant row
-      try {
-        await db.deletePartnerShop(merchant.id);
-      } catch (cleanErr) {
-        console.error('[Merchant Login] Auto-clean orphan merchant error:', cleanErr);
+    if (shop) {
+      const shopStatus = (shop.status || '').toUpperCase();
+      if (shopStatus === 'SUSPENDED') {
+        res.status(403).json({
+          success: false,
+          code: 'SHOP_SUSPENDED',
+          message: 'আপনার দোকানটি সাময়িকভাবে স্থগিত করা হয়েছে। অ্যাডমিনের সাথে যোগাযোগ করুন।'
+        });
+        return;
       }
-      res.status(401).json({
-        success: false,
-        code: 'SHOP_NOT_FOUND',
-        message: 'এই মার্চেন্টের সংশ্লিষ্ট দোকানটি আর বিদ্যমান নেই বা মুছে ফেলা হয়েছে।'
-      });
-      return;
-    }
-
-    const shopStatus = (shop.status || '').toUpperCase();
-    if (shopStatus === 'SUSPENDED') {
-      res.status(403).json({
-        success: false,
-        code: 'SHOP_SUSPENDED',
-        message: 'আপনার দোকানটি সাময়িকভাবে স্থগিত করা হয়েছে। অ্যাডমিনের সাথে যোগাযোগ করুন।'
-      });
-      return;
-    }
-    if (shopStatus === 'INACTIVE') {
-      res.status(403).json({
-        success: false,
-        code: 'SHOP_INACTIVE',
-        message: 'আপনার দোকানটি বর্তমানে নিষ্ক্রিয় রয়েছে।'
-      });
-      return;
-    }
-    if (shopStatus !== 'ACTIVE') {
-      res.status(403).json({
-        success: false,
-        code: 'SHOP_NOT_ACTIVE',
-        message: 'আপনার দোকানটি এখনও সক্রিয় নয়।'
-      });
-      return;
     }
 
     const verification = await db.getMerchantVerificationByMerchantId(merchant.id);
@@ -848,10 +787,22 @@ merchantRoutes.get('/dashboard', requireMerchantAuth, async (req: AuthRequest, r
     }
 
     if (shop.status !== 'ACTIVE') {
-      res.status(403).json({
-        success: false,
-        error: 'SHOP_PENDING',
-        message: 'আপনার অ্যাকাউন্টটি এখনও সক্রিয় নয়।',
+      res.json({
+        success: true,
+        stats: {
+          todaySales: 0,
+          todayCommission: 0,
+          pendingRedemptions: 0,
+          completedRedemptions: 0,
+          totalSales: 0,
+          totalCommission: 0,
+          shop,
+          rates: {
+            gold: shop.goldDiscount || 0,
+            silver: shop.silverDiscount || 0,
+            bronze: shop.bronzeDiscount || 0
+          }
+        },
         shopStatus: shop.status
       });
       return;

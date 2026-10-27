@@ -29,7 +29,8 @@ import {
   Navigation,
   Search,
   Crosshair,
-  Loader2
+  Loader2,
+  Clock
 } from 'lucide-react';
 import { GoogleMapLocationPicker } from './GoogleMapLocationPicker';
 import { optimizeImageForUpload } from '../utils/imageOptimizer';
@@ -97,6 +98,13 @@ export const MerchantRegistrationWizard: React.FC<MerchantRegistrationWizardProp
   initialData
 }) => {
   const [currentStep, setCurrentStep] = useState<number>(1);
+  const [submittedData, setSubmittedData] = useState<{
+    token: string;
+    merchant: any;
+    shop: any;
+    verification: any;
+    message?: string;
+  } | null>(null);
 
   // Step 1: Credentials
   const [ownerName, setOwnerName] = useState(initialData?.ownerName || '');
@@ -387,8 +395,14 @@ export const MerchantRegistrationWizard: React.FC<MerchantRegistrationWizardProp
 
       const res = await api.submitMerchantRegistration(payload);
       if (res.success) {
-        onShowToast?.('success', 'রেজিস্ট্রেশন জমা হয়েছে', res.message);
-        onSuccess(res.token, res.merchant, res.shop, res.verification);
+        onShowToast?.('success', 'রেজিস্ট্রেশন জমা হয়েছে', res.message || 'আপনার আবেদন সফলভাবে জমা হয়েছে।');
+        setSubmittedData({
+          token: res.token,
+          merchant: res.merchant,
+          shop: res.shop,
+          verification: res.verification,
+          message: res.message
+        });
       } else {
         onShowToast?.('error', 'জমা দিতে ব্যর্থ', res.message);
       }
@@ -398,6 +412,94 @@ export const MerchantRegistrationWizard: React.FC<MerchantRegistrationWizardProp
       setIsSubmitting(false);
     }
   };
+
+  // Persistent Submission Success View: Stays visible until user clicks OK or Back
+  if (submittedData) {
+    return (
+      <div className="bg-[#021811]/95 backdrop-blur-xl rounded-3xl border border-emerald-500/40 p-6 sm:p-8 text-white shadow-2xl max-w-2xl mx-auto space-y-6 animate-in fade-in zoom-in-95 duration-200">
+        <div className="text-center space-y-3">
+          <div className="w-20 h-20 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto border-2 border-emerald-500/40 shadow-inner">
+            <CheckCircle2 className="w-10 h-10" />
+          </div>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30 uppercase tracking-wider">
+            <Clock className="w-3.5 h-3.5 text-amber-400" /> অ্যাডমিন রিভিউ অপেক্ষমাণ (Pending Admin Review)
+          </span>
+          <h2 className="text-2xl sm:text-3xl font-black text-emerald-100">
+            মার্চেন্ট একাউন্ট রিকোয়েস্ট জমা হয়েছে!
+          </h2>
+          <p className="text-sm text-slate-300 max-w-lg mx-auto leading-relaxed">
+            {submittedData.message || 'আপনার মার্চেন্ট রেজিস্ট্রেশন আবেদন সফলভাবে গৃহীত হয়েছে। অ্যাডমিন টিম পর্যালোচনার পর অ্যাকাউন্ট সক্রিয় করবে।'}
+          </p>
+        </div>
+
+        {/* Application Summary Card */}
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 space-y-3 shadow-lg">
+          <div className="text-xs font-bold text-amber-400 uppercase tracking-wider border-b border-slate-800 pb-2 flex items-center justify-between">
+            <span>আবেদনের সারসংক্ষেপ (Application Summary)</span>
+            <span className="text-emerald-400">স্ট্যাটাস: PENDING</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div>
+              <span className="text-slate-400 block">দোকানের নাম:</span>
+              <span className="font-bold text-white text-sm">{shopName}</span>
+            </div>
+            <div>
+              <span className="text-slate-400 block">স্বত্বাধিকারী / ম্যানেজার:</span>
+              <span className="font-bold text-white text-sm">{ownerName}</span>
+            </div>
+            <div>
+              <span className="text-slate-400 block">মোবাইল নম্বর:</span>
+              <span className="font-bold text-white text-sm font-mono">{phone}</span>
+            </div>
+            <div>
+              <span className="text-slate-400 block">ঠিকানা ও এলাকা:</span>
+              <span className="font-bold text-white text-sm">{upazilaThana ? `${upazilaThana}, ` : ''}{district}</span>
+            </div>
+            <div>
+              <span className="text-slate-400 block">কমিশন পলিসি:</span>
+              <span className="font-bold text-emerald-300 text-sm">{totalCommNum}% মোট কমিশন</span>
+            </div>
+            <div>
+              <span className="text-slate-400 block">জাতীয় পরিচয়পত্র (NID):</span>
+              <span className="font-bold text-slate-200 text-sm font-mono">{nidNumber}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* User reassurance: page will NOT close until OK or Back is clicked */}
+        <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-start gap-2.5">
+          <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <p className="leading-relaxed">
+            এই পেজটি স্বয়ংক্রিয়ভাবে বন্ধ হবে না। আপনি নিজের পছন্দমতো নিচের বাটনে ক্লিক করে বর্তমান আবেদন স্ট্যাটাস দেখতে পারেন অথবা ইউজার অ্যাপে ফিরে যেতে পারেন।
+          </p>
+        </div>
+
+        {/* Two explicit action buttons */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+          <button
+            id="merchant-confirm-view-status-btn"
+            type="button"
+            onClick={() => {
+              onSuccess(submittedData.token, submittedData.merchant, submittedData.shop, submittedData.verification);
+            }}
+            className="w-full sm:flex-1 py-3 px-6 rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-black text-sm shadow-xl shadow-emerald-950/40 transition-all flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            ঠিক আছে, আবেদন স্ট্যাটাস দেখুন (OK)
+          </button>
+
+          <button
+            id="merchant-confirm-back-btn"
+            type="button"
+            onClick={onCancel}
+            className="w-full sm:w-auto py-3 px-6 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-sm transition-all border border-slate-700 cursor-pointer"
+          >
+            ← ফিরে যান (Back)
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const stepsList = [
     { num: 1, title: 'একাউন্ট ডাটা' },

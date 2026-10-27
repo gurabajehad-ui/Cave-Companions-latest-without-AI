@@ -5,26 +5,201 @@
       "description": "Compressed database state snapshot ensuring pilot test data persistence in Cloud Run",
       "type": "object",
       "properties": {
-        "data": {
-          "type": "string",
-          "description": "Base64 encoded gzipped database binary buffer"
-        },
-        "size": {
-          "type": "number",
-          "description": "Byte length of uncompressed database"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "ISO timestamp of the snapshot"
-        }
+        "data": { "type": "string", "description": "Base64 encoded gzipped database binary buffer" },
+        "size": { "type": "number", "description": "Byte length of uncompressed database" },
+        "updatedAt": { "type": "string", "description": "ISO timestamp of the snapshot" }
       },
       "required": ["data", "size", "updatedAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Registered app user account",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fullName": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "gender": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "fullName", "phone"]
+    },
+    "Merchant": {
+      "title": "Merchant",
+      "description": "Registered merchant store owner",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "shopId": { "type": "string" },
+        "role": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "phone", "shopId"]
+    },
+    "Shop": {
+      "title": "Shop",
+      "description": "Partner merchant shop",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "phone": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "ownerId"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Merchant product item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "shopId": { "type": "string" },
+        "name": { "type": "string" },
+        "originalPrice": { "type": "number" },
+        "status": { "type": "string" },
+        "isAvailable": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "shopId", "name", "originalPrice"]
+    },
+    "Rider": {
+      "title": "Rider",
+      "description": "Local delivery rider",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fullName": { "type": "string" },
+        "phone": { "type": "string" },
+        "status": { "type": "string" },
+        "approvalStatus": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "fullName", "phone"]
+    },
+    "Circle": {
+      "title": "Circle",
+      "description": "Salah prayer companion circle",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "adminId": { "type": "string" },
+        "category": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "adminId"]
+    },
+    "CircleMember": {
+      "title": "CircleMember",
+      "description": "Member of a prayer circle",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "circleId": { "type": "string" },
+        "userId": { "type": "string" },
+        "role": { "type": "string" },
+        "status": { "type": "string" },
+        "joinedAt": { "type": "string" }
+      },
+      "required": ["id", "circleId", "userId"]
+    },
+    "Token": {
+      "title": "Token",
+      "description": "User earned prayer token",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "tokenType": { "type": "string" },
+        "status": { "type": "string" },
+        "earnedDate": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "tokenType", "status"]
+    },
+    "PrayerAttendance": {
+      "title": "PrayerAttendance",
+      "description": "Verified prayer attendance check-in",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "mosqueId": { "type": "string" },
+        "mosqueName": { "type": "string" },
+        "prayerType": { "type": "string" },
+        "date": { "type": "string" },
+        "verifiedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "prayerType", "date"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer purchase order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderNumber": { "type": "string" },
+        "userId": { "type": "string" },
+        "status": { "type": "string" },
+        "totalCodAmount": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "orderNumber", "userId"]
     }
   },
   "firestore": {
     "/_pilot_persistence/{docId}": {
       "schema": "PilotSnapshot",
-      "description": "Collection storing application database snapshots for seamless cross-instance persistence"
+      "description": "Snapshots ensuring cross-instance persistence"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Registered app user profiles"
+    },
+    "/merchants/{merchantId}": {
+      "schema": "Merchant",
+      "description": "Merchant accounts"
+    },
+    "/shops/{shopId}": {
+      "schema": "Shop",
+      "description": "Partner shops"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Products catalog"
+    },
+    "/riders/{riderId}": {
+      "schema": "Rider",
+      "description": "Delivery riders"
+    },
+    "/circles/{circleId}": {
+      "schema": "Circle",
+      "description": "Prayer circles"
+    },
+    "/circle_members/{memberId}": {
+      "schema": "CircleMember",
+      "description": "Circle member relations"
+    },
+    "/tokens/{tokenId}": {
+      "schema": "Token",
+      "description": "User earned prayer tokens"
+    },
+    "/prayer_attendances/{attendanceId}": {
+      "schema": "PrayerAttendance",
+      "description": "Prayer attendance verified records"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Orders placed by customers"
     }
   }
 }

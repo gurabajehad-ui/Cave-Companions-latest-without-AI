@@ -88,12 +88,12 @@ function AdBannerComponent({ pageName, placementSlot }: AdBannerProps) {
         const displaySize = (ad as any).displaySize;
         const spaceProfile = (ad as any).spaceProfile;
         
-        // Compact outer margins based on space profile
-        let spaceClass = 'my-2';
-        if (spaceProfile === 'COMPACT') spaceClass = 'my-1';
-        else if (spaceProfile === 'EXPANDED') spaceClass = 'my-4';
+        // Compact outer margins based on space profile (reduced gap)
+        let spaceClass = 'my-1';
+        if (spaceProfile === 'COMPACT') spaceClass = 'my-0.5';
+        else if (spaceProfile === 'EXPANDED') spaceClass = 'my-2';
         
-        // Strictly control width and height based on S/M/L
+        // Control width and height based on S/M/L, with smooth rounded corners
         let sizeClass = 'w-full'; 
         let heightClass = 'h-52'; 
         let roundedClass = 'rounded-2xl';
@@ -101,17 +101,15 @@ function AdBannerComponent({ pageName, placementSlot }: AdBannerProps) {
         if (displaySize === 'SMALL') {
           sizeClass = 'w-56 sm:w-64 mx-auto';
           heightClass = 'h-36'; // Smaller banner height
-          roundedClass = 'rounded-xl';
+          roundedClass = 'rounded-2xl';
         } else if (displaySize === 'MEDIUM') {
-          // Home page's header card has w-full and beautiful rounded-3xl
           sizeClass = 'w-full';
-          heightClass = 'h-40 sm:h-44'; // Compact medium height (matches progress card look perfectly)
-          roundedClass = 'rounded-3xl'; // Match Header Card (rounded-3xl)
+          heightClass = 'h-40 sm:h-44'; // Compact medium height
+          roundedClass = 'rounded-2xl';
         } else if (displaySize === 'LARGE') {
-          // Nasiha card has rounded-2xl and w-full
           sizeClass = 'w-full';
-          heightClass = 'h-48 sm:h-52'; // Compact but elegant large height (matches Nasiha card look perfectly)
-          roundedClass = 'rounded-2xl'; // Match Nasiha card (rounded-2xl)
+          heightClass = 'h-48 sm:h-52'; // Compact large height
+          roundedClass = 'rounded-2xl';
         }
 
         const handleAdClick = () => {

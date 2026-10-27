@@ -228,12 +228,47 @@ export class NotificationService {
         ]
       );
 
+      // 7. Send Push Notification if subscription exists
+      try {
+        const subRes = await query(
+          `SELECT subscription 
+           FROM notification_subscriptions WHERE user_id = $1`,
+          [recipientUserId]
+        );
+        const subscriptionStr = subRes.rows.length > 0 ? subRes.rows[0].subscription : null;
+        if (subscriptionStr) {
+          const subscription = typeof subscriptionStr === 'string' ? JSON.parse(subscriptionStr) : subscriptionStr;
+          const { sendPushNotification } = await import('./fcmService.js');
+          await sendPushNotification(subscription, renderedTitleBn, renderedMessageBn);
+        }
+      } catch (pushErr) {
+        console.error(`[NotificationService] Push failed for user ${recipientUserId}:`, pushErr);
+      }
+
       console.log(`[NotificationService] Notification sent successfully to user ${recipientUserId} for event ${eventType}`);
       return true;
     } catch (err) {
       console.error(`[NotificationService] Failed to send notification for event ${eventType}:`, err);
       // Return false safely without failing parent business action
       return false;
+    }
+  }
+
+  public static async sendPushToUser(userId: string, title: string, body: string) {
+    try {
+      const subRes = await query(
+        `SELECT subscription 
+         FROM notification_subscriptions WHERE user_id = $1`,
+        [userId]
+      );
+      const subscriptionStr = subRes.rows.length > 0 ? subRes.rows[0].subscription : null;
+      if (subscriptionStr) {
+        const subscription = typeof subscriptionStr === 'string' ? JSON.parse(subscriptionStr) : subscriptionStr;
+        const { sendPushNotification } = await import('./fcmService.js');
+        await sendPushNotification(subscription, title, body);
+      }
+    } catch (pushErr) {
+      console.error(`[NotificationService] Push failed for user ${userId}:`, pushErr);
     }
   }
 }

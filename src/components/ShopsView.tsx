@@ -480,57 +480,55 @@ export const ShopsView: React.FC<ShopsViewProps> = ({
   }
 
   return (
-    <div className="space-y-4 sm:space-y-5 pb-12">
-      {/* Top Banner & Quick Controls */}
-      <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-slate-900 border border-emerald-500/30 rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-xl relative overflow-hidden">
-        <div className="relative z-10 space-y-3 sm:space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg sm:text-xl font-black text-white">
-                {language === 'bn' ? 'পার্টনার শপ ও অনলাইন মার্কেটপ্লেস' : 'Partner Shops & Online Marketplace'}
-              </h2>
-              <p className="text-xs text-slate-300 mt-0.5 max-w-xl">
-                {language === 'bn' ? 'তাকওয়া • সততা • সত্যবাদিতা' : 'Taqwa • Honesty • Truthfulness'}
-              </p>
-            </div>
+    <div className="space-y-3 sm:space-y-4 pb-12">
+      {/* Top Header written directly on background wall */}
+      <div className="py-1 px-1 text-white">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+              {language === 'bn' ? 'পার্টনার শপ ও মার্কেটপ্লেস' : 'Partner Shops & Marketplace'}
+            </h2>
+            <p className="text-xs text-emerald-200/80 mt-0.5 max-w-xl">
+              {language === 'bn' ? 'তাকওয়া • সততা • সত্যবাদিতা' : 'Taqwa • Honesty • Truthfulness'}
+            </p>
+          </div>
 
-            {/* Quick Action Badges */}
-            <div className="flex flex-nowrap items-center gap-2 shrink-0 overflow-x-auto pb-1 no-scrollbar">
-              <button
-                id="my-cart-shortcut-btn"
-                type="button"
-                onClick={() => setShowCartModal(true)}
-                className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
-              >
-                <ShoppingCart className="w-3.5 h-3.5" />
-                <span>{language === 'bn' ? 'আমার কার্ট' : 'My Cart'}</span>
-                {cartItemCount > 0 && (
-                  <span className="w-4 h-4 bg-white text-emerald-700 rounded-full text-[9px] flex items-center justify-center font-extrabold shadow-xs">
-                    {cartItemCount}
-                  </span>
-                )}
-              </button>
+          {/* Quick Action Badges with right-angled corners */}
+          <div className="flex flex-nowrap items-center gap-1.5 shrink-0 overflow-x-auto pb-1 no-scrollbar">
+            <button
+              id="my-cart-shortcut-btn"
+              type="button"
+              onClick={() => setShowCartModal(true)}
+              className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
+            >
+              <ShoppingCart className="w-3.5 h-3.5" />
+              <span>{language === 'bn' ? 'আমার কার্ট' : 'My Cart'}</span>
+              {cartItemCount > 0 && (
+                <span className="w-4 h-4 bg-white text-emerald-700 rounded-none text-[9px] flex items-center justify-center font-extrabold shadow-xs">
+                  {cartItemCount}
+                </span>
+              )}
+            </button>
 
-              <button
-                id="my-orders-shortcut-btn"
-                type="button"
-                onClick={() => setShowOrdersModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
-              >
-                <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{language === 'bn' ? 'আমার অর্ডার' : 'My Orders'}</span>
-              </button>
+            <button
+              id="my-orders-shortcut-btn"
+              type="button"
+              onClick={() => setShowOrdersModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-[#022119] hover:bg-[#033628] text-slate-200 border border-[#0a4838] text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
+            >
+              <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{language === 'bn' ? 'আমার অর্ডার' : 'My Orders'}</span>
+            </button>
 
-              <button
-                id="my-redemption-history-btn"
-                type="button"
-                onClick={() => setShowHistoryModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
-              >
-                <Receipt className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{language === 'bn' ? 'আমার রিডেম্পশন' : 'My Redemptions'}</span>
-              </button>
-            </div>
+            <button
+              id="my-redemption-history-btn"
+              type="button"
+              onClick={() => setShowHistoryModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-none bg-[#022119] hover:bg-[#033628] text-slate-200 border border-[#0a4838] text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
+            >
+              <Receipt className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{language === 'bn' ? 'আমার রিডেম্পশন' : 'My Redemptions'}</span>
+            </button>
           </div>
         </div>
       </div>

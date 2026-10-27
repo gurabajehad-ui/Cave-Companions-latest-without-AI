@@ -295,7 +295,7 @@ const CircularPrayerCountdown: React.FC<CircularPrayerCountdownProps> = React.me
         <div
           ref={forbiddenBadgeRef}
           style={{ display: 'none' }}
-          className="items-center gap-1 text-[8px] font-bold text-rose-300 bg-rose-950/90 border border-rose-600/40 px-1.5 py-0.5 rounded-full absolute -bottom-2 shadow-lg"
+          className="items-center gap-1 text-[8px] font-bold text-rose-300 bg-rose-950/90 border border-rose-600/40 px-1.5 py-0.5 rounded-none absolute -bottom-2 shadow-lg"
         >
           <AlertCircle className="w-2.5 h-2.5 text-rose-400" />
           {t('prayer.forbidden')}
@@ -593,7 +593,7 @@ export const DailyProgressCard: React.FC<DailyProgressCardProps> = React.memo(({
   return (
     <div 
       style={{ transform: 'translate3d(0, 0, 0)', backfaceVisibility: 'hidden' }}
-      className="relative overflow-hidden rounded-[30px] sm:rounded-[34px] border border-[#13493b]/70 bg-gradient-to-b from-[#041d16] via-[#031711] to-[#02110c] p-4.5 sm:p-5.5 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.06)] text-white space-y-4 sm:space-y-4.5"
+      className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-[#13493b]/70 bg-gradient-to-b from-[#041d16] via-[#031711] to-[#02110c] p-4 sm:p-5 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.85),inset_0_1px_1px_rgba(255,255,255,0.06)] text-white space-y-3.5 sm:space-y-4"
     >
       {/* Zero-Lag Ambient Radial Accents */}
       <div className="absolute top-0 right-0 w-52 h-52 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.09)_0%,transparent_70%)] pointer-events-none" />
@@ -601,8 +601,8 @@ export const DailyProgressCard: React.FC<DailyProgressCardProps> = React.memo(({
 
       {/* 1. Top Header: Hijri Date & Gregorian Date */}
       <div className="flex items-center gap-3.5 relative z-10">
-        {/* Calendar Icon Badge - Quiet Luxury Metallic Glass */}
-        <div className="w-10.5 h-10.5 sm:w-11 sm:h-11 rounded-2xl bg-gradient-to-br from-[#083025] to-[#041a14] border border-[#d4af37]/35 flex items-center justify-center text-[#fbbf24] shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.35),inset_0_1px_1px_rgba(251,191,36,0.2)]">
+        {/* Calendar Icon Badge */}
+        <div className="w-10.5 h-10.5 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-[#083025] to-[#041a14] border border-[#d4af37]/35 flex items-center justify-center text-[#fbbf24] shrink-0 shadow-[0_4px_12px_rgba(0,0,0,0.35),inset_0_1px_1px_rgba(251,191,36,0.2)]">
           <Calendar className="w-5 h-5 text-[#fbbf24] drop-shadow-[0_0_6px_rgba(251,191,36,0.4)]" />
         </div>
 
@@ -658,8 +658,8 @@ export const DailyProgressCard: React.FC<DailyProgressCardProps> = React.memo(({
         />
       </div>
 
-      {/* 3. 5-Prayer Timings Grid Container (Refined Luxury Tile Layout) */}
-      <div className="rounded-[22px] bg-gradient-to-b from-[#021812]/95 to-[#01110c]/95 border border-[#0d4233]/70 p-2.5 sm:p-3 shadow-inner relative z-10">
+      {/* 3. 5-Prayer Timings Grid Container */}
+      <div className="rounded-2xl bg-gradient-to-b from-[#021812]/95 to-[#01110c]/95 border border-[#0d4233]/70 p-2.5 sm:p-3 shadow-inner relative z-10">
         <div className="grid grid-cols-5 gap-1.5 sm:gap-2 text-center">
           {prayerSteps.map((step, idx) => {
             const IconComponent = step.icon;
@@ -680,15 +680,15 @@ export const DailyProgressCard: React.FC<DailyProgressCardProps> = React.memo(({
                 {/* Top Icon Badge */}
                 <div className="h-9 flex items-center justify-center">
                   {isDone ? (
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-b from-amber-500/20 to-amber-950/50 border border-amber-400/70 flex items-center justify-center text-amber-300 ring-2 ring-amber-400/20 shadow-[0_0_12px_rgba(245,158,11,0.35)] transition-transform hover:scale-105">
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-b from-amber-500/20 to-amber-950/50 border border-amber-400/70 flex items-center justify-center text-amber-300 ring-2 ring-amber-400/20 shadow-[0_0_12px_rgba(245,158,11,0.35)] transition-transform hover:scale-105">
                       <IconComponent className="w-4 h-4 text-amber-300 drop-shadow-[0_0_4px_rgba(245,158,11,0.5)]" />
                     </div>
                   ) : isActive ? (
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-b from-emerald-500/20 to-emerald-950/60 border border-emerald-400/70 flex items-center justify-center text-emerald-300 ring-3 ring-emerald-500/20 shadow-[0_0_12px_rgba(16,185,129,0.35)] transition-transform hover:scale-105">
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-b from-emerald-500/20 to-emerald-950/60 border border-emerald-400/70 flex items-center justify-center text-emerald-300 ring-2 ring-emerald-500/20 shadow-[0_0_12px_rgba(16,185,129,0.35)] transition-transform hover:scale-105">
                       <IconComponent className="w-4 h-4 text-emerald-300 drop-shadow-[0_0_4px_rgba(52,211,153,0.5)]" />
                     </div>
                   ) : (
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-slate-400/70 hover:text-slate-300 transition-colors">
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-slate-400/70 hover:text-slate-300 transition-colors">
                       <IconComponent className="w-4 h-4 text-slate-400/80" />
                     </div>
                   )}
@@ -716,7 +716,7 @@ export const DailyProgressCard: React.FC<DailyProgressCardProps> = React.memo(({
                   {step.time}
                 </span>
 
-                {/* Bottom Glowing Bar Indicator */}
+                {/* Bottom Indicator Bar */}
                 <div className="w-full mt-2 px-1">
                   {isDone ? (
                     <div className="w-full h-1 sm:h-1.5 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 shadow-[0_0_10px_rgba(245,158,11,0.9)] transition-all" />
@@ -745,9 +745,9 @@ export const DailyProgressCard: React.FC<DailyProgressCardProps> = React.memo(({
         className="w-full text-left p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-[#031d16]/95 via-[#04241c]/90 to-[#031d16]/95 hover:from-[#05261d] hover:to-[#041f17] border border-[#0d4435]/80 hover:border-emerald-500/40 flex items-center justify-between gap-3 shadow-[0_4px_16px_rgba(0,0,0,0.3)] transition-all cursor-pointer active:scale-[0.99] group relative z-10"
       >
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          {/* Golden Coin Icon matching screenshot */}
-          <div className="w-10 h-10 rounded-full bg-gradient-to-b from-[#ffdf6b] via-[#e5a928] to-[#9c6a0c] p-0.5 shadow-[0_0_12px_rgba(245,158,11,0.4)] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-            <div className="w-full h-full rounded-full bg-gradient-to-b from-[#fcd34d] to-[#d97706] flex items-center justify-center border border-amber-200/40 text-amber-950 font-black text-sm">
+          {/* Golden Coin Icon */}
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-b from-[#ffdf6b] via-[#e5a928] to-[#9c6a0c] p-0.5 shadow-[0_0_12px_rgba(245,158,11,0.4)] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <div className="w-full h-full rounded-lg bg-gradient-to-b from-[#fcd34d] to-[#d97706] flex items-center justify-center border border-amber-200/40 text-amber-950 font-black text-sm">
               ★
             </div>
           </div>
@@ -778,7 +778,7 @@ export const DailyProgressCard: React.FC<DailyProgressCardProps> = React.memo(({
         >
           <div className="flex items-center gap-3 min-w-0 flex-1">
             {/* Golden BarChart Icon Badge */}
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#082e23] to-[#041a14] border border-[#d4af37]/35 flex items-center justify-center text-[#fbbf24] shrink-0 shadow-[0_2px_8px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(251,191,36,0.2)] group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#082e23] to-[#041a14] border border-[#d4af37]/35 flex items-center justify-center text-[#fbbf24] shrink-0 shadow-[0_2px_8px_rgba(0,0,0,0.3),inset_0_1px_1px_rgba(251,191,36,0.2)] group-hover:scale-105 transition-transform">
               <BarChart3 className="w-5 h-5 text-[#fbbf24] drop-shadow-[0_0_4px_rgba(251,191,36,0.35)]" />
             </div>
 
@@ -789,7 +789,7 @@ export const DailyProgressCard: React.FC<DailyProgressCardProps> = React.memo(({
                   {language === 'bn' ? 'আমার কেভ জার্নি' : 'My Cave Journey'}
                 </span>
                 {teaser?.badgeText ? (
-                  <span className="text-[10px] font-bold text-emerald-300 bg-[#083628] border border-[#0f543e] px-1.5 py-0.5 rounded-md">
+                  <span className="text-[10px] font-bold text-emerald-300 bg-[#083628] border border-[#0f543e] px-1.5 py-0.5 rounded-full">
                     {language === 'bn' ? teaser.badgeText : (teaser.badgeTextEn || teaser.badgeText)}
                   </span>
                 ) : null}

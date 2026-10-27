@@ -485,7 +485,7 @@ export async function requireMerchantAuth(req: AuthRequest, res: Response, next:
     return;
   }
 
-  // Enforce merchant status: must be active
+  // Enforce merchant status: reject suspended or deleted accounts
   const merchantStatus = (merchant.status || '').toLowerCase();
   if (merchantStatus === 'suspended') {
     res.status(403).json({
@@ -495,70 +495,65 @@ export async function requireMerchantAuth(req: AuthRequest, res: Response, next:
     });
     return;
   }
-  if (merchantStatus === 'inactive') {
-    res.status(403).json({
+
+  // Shop validation if shopId is present
+  let shop: any = null;
+  if (merchant.shopId) {
+    shop = await db.getShopById(merchant.shopId);
+    if (shop) {
+      const shopStatus = (shop.status || '').toUpperCase();
+      if (shopStatus === 'SUSPENDED') {
+        res.status(403).json({
+          success: false,
+          error: 'SHOP_SUSPENDED',
+          message: 'আপনার দোকানটি সাময়িকভাবে স্থগিত করা হয়েছে। অ্যাডমিনের সাথে যোগাযোগ করুন।'
+        });
+        return;
+      }
+    }
+  }
+
+  // Valid authenticated merchant (active, pending, correction_required, or rejected)
+  req.merchant = merchant;
+  (req as any).shop = shop;
+  next();
+}
+
+/**
+ * Middleware for actions that strictly require an APPROVED & ACTIVE partner shop (e.g. redeeming tokens, changing live discounts).
+ * Pending or under-review merchants can authenticate with requireMerchantAuth, but cannot execute active shop operations.
+ */
+export async function requireActiveMerchantShop(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  const merchant = req.merchant;
+  if (!merchant) {
+    res.status(401).json({
       success: false,
-      error: 'ACCOUNT_INACTIVE',
-      message: 'আপনার মার্চেন্ট অ্যাকাউন্টটি নিষ্ক্রিয় রয়েছে।'
+      error: 'MERCHANT_UNAUTHORIZED',
+      message: 'মার্চেন্ট পোর্টালে প্রবেশের জন্য অনুগ্রহ করে লগইন করুন।'
     });
     return;
   }
+
+  const merchantStatus = (merchant.status || '').toLowerCase();
   if (merchantStatus !== 'active') {
     res.status(403).json({
       success: false,
-      error: 'ACCOUNT_INACTIVE',
-      message: 'মার্চেন্ট অ্যাকাউন্টটি এখনও সক্রিয় নয়।'
+      error: 'ACCOUNT_NOT_ACTIVE',
+      message: 'আপনার মার্চেন্ট অ্যাকাউন্টটি এখনও সক্রিয় নয়। অ্যাডমিন অনুমোদনের পর এই সুবিধা পাওয়া যাবে।'
     });
     return;
   }
 
-  // Shop validation: shop must exist and must be ACTIVE
-  if (!merchant.shopId) {
-    res.status(401).json({
-      success: false,
-      error: 'SHOP_NOT_FOUND',
-      message: 'মার্চেন্টের সংশ্লিষ্ট দোকানটি পাওয়া যায়নি।'
-    });
-    return;
-  }
-
-  const shop = await db.getShopById(merchant.shopId);
-  if (!shop) {
-    res.status(401).json({
-      success: false,
-      error: 'SHOP_NOT_FOUND',
-      message: 'মার্চেন্টের সংশ্লিষ্ট দোকানটি আর বিদ্যমান নেই বা মুছে ফেলা হয়েছে।'
-    });
-    return;
-  }
-
-  const shopStatus = (shop.status || '').toUpperCase();
-  if (shopStatus === 'SUSPENDED') {
-    res.status(403).json({
-      success: false,
-      error: 'SHOP_SUSPENDED',
-      message: 'আপনার দোকানটি সাময়িকভাবে স্থগিত করা হয়েছে। অ্যাডমিনের সাথে যোগাযোগ করুন।'
-    });
-    return;
-  }
-  if (shopStatus === 'INACTIVE') {
-    res.status(403).json({
-      success: false,
-      error: 'SHOP_INACTIVE',
-      message: 'আপনার দোকানটি বর্তমানে নিষ্ক্রিয় রয়েছে।'
-    });
-    return;
-  }
-  if (shopStatus !== 'ACTIVE') {
+  const shop = (req as any).shop || (merchant.shopId ? await db.getShopById(merchant.shopId) : null);
+  if (!shop || (shop.status || '').toUpperCase() !== 'ACTIVE') {
     res.status(403).json({
       success: false,
       error: 'SHOP_NOT_ACTIVE',
-      message: 'আপনার দোকানটি এখনও সক্রিয় নয়।'
+      message: 'আপনার দোকানটি এখনও অনুমোদিত বা সক্রিয় নয়।'
     });
     return;
   }
 
-  req.merchant = merchant;
   next();
 }
 

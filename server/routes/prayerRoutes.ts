@@ -26,8 +26,28 @@ router.get('/today', requireAuth, async (req: AuthRequest, res) => {
     const user = req.user!;
     // Use the active operational prayer date (handles midnight-crossing Isha cycle)
     const todayStr = getOperationalPrayerDate(new Date());
+    const dhakaTodayStr = getDhakaDateString(new Date());
     const isTodayFri = isFriday(todayStr);
-    const attendances = await db.getUserTodayAttendances(user.id, todayStr);
+
+    // Retrieve today's attendances (including verified and quarantined under review)
+    let attendances = await db.getUserTodayAttendances(user.id, todayStr, true);
+
+    // If operational date differs from Dhaka calendar date (e.g. early Fajr twilight), merge records
+    if (dhakaTodayStr !== todayStr) {
+      try {
+        const extraAtts = await db.getUserTodayAttendances(user.id, dhakaTodayStr, true);
+        const existingPrayerTypes = new Set(attendances.map(a => (a.prayerType || '').toLowerCase()));
+        extraAtts.forEach(extra => {
+          const extraType = (extra.prayerType || '').toLowerCase();
+          if (!existingPrayerTypes.has(extraType)) {
+            attendances.push(extra);
+            existingPrayerTypes.add(extraType);
+          }
+        });
+      } catch (mergeErr) {
+        console.warn('[PrayerRoutes:today] Optional date merge warning:', mergeErr);
+      }
+    }
 
     const dayPrayers: PrayerType[] = isTodayFri
       ? ['fajr', 'jumuah', 'asr', 'maghrib', 'isha']
@@ -35,30 +55,44 @@ router.get('/today', requireAuth, async (req: AuthRequest, res) => {
 
     const prayerStatusMap: Record<string, any> = {};
     dayPrayers.forEach(p => {
-      prayerStatusMap[p] = { completed: false, attendance: null };
+      prayerStatusMap[p] = { completed: false, attendance: null, isQuarantined: false };
     });
 
     attendances.forEach(att => {
-      const pType = att.prayerType as PrayerType;
+      const pType = (att.prayerType || '').toLowerCase() as PrayerType;
+      const isQuarantined = att.securityStatus === 'quarantined';
       if (prayerStatusMap[pType]) {
         prayerStatusMap[pType] = {
           completed: true,
-          attendance: att
+          attendance: att,
+          isQuarantined
         };
       } else if (isTodayFri && pType === 'dhuhr' && prayerStatusMap['jumuah']) {
         prayerStatusMap['jumuah'] = {
           completed: true,
-          attendance: att
+          attendance: att,
+          isQuarantined
         };
       } else if (!isTodayFri && pType === 'jumuah' && prayerStatusMap['dhuhr']) {
         prayerStatusMap['dhuhr'] = {
           completed: true,
-          attendance: att
+          attendance: att,
+          isQuarantined
         };
       }
     });
 
     const completedCount = attendances.length;
+
+    // Auto-generate/update today's token if 3/4/5 prayers are completed
+    try {
+      await db.generateOrUpdateDailyToken(user.id, todayStr);
+      if (dhakaTodayStr !== todayStr) {
+        await db.generateOrUpdateDailyToken(user.id, dhakaTodayStr);
+      }
+    } catch (e) {
+      console.warn('[PrayerRoutes:today] auto-generate token warning:', e);
+    }
 
     res.json({
       success: true,
@@ -453,7 +487,8 @@ const handlePrayerVerification = async (req: AuthRequest, res: Response) => {
     }
 
     // Record prayer attendance against targetDateStr with original scannedAt timestamp
-    const result = await db.recordPrayerAttendance(
+    let result: any = null;
+    result = await db.recordPrayerAttendance(
       user.id,
       mosqueToUse,
       prayerType as PrayerType,
@@ -467,10 +502,10 @@ const handlePrayerVerification = async (req: AuthRequest, res: Response) => {
       riskReasons.join(', ')
     );
 
-    console.log(`[PrayerRoutes:verify-qr:DB] recordPrayerAttendance result: success=${result.success}${result.error ? `, failureReason=${result.error}` : ''}`);
+    console.log(`[PrayerRoutes:verify-qr:DB] recordPrayerAttendance result: success=${result?.success}${result?.error ? `, failureReason=${result.error}` : ''}`);
 
-    if (!result.success) {
-      if (result.error === 'ALREADY_COMPLETED') {
+    if (!result || !result.success) {
+      if (result?.error === 'ALREADY_COMPLETED') {
         console.log(`[PrayerRoutes:verify-qr:DUPLICATE] Prayer already completed for date=${targetDateStr}, prayer=${prayerType}`);
         res.status(409).json({
           success: false,
@@ -481,7 +516,7 @@ const handlePrayerVerification = async (req: AuthRequest, res: Response) => {
         return;
       }
 
-      console.warn(`[PrayerRoutes:verify-qr:REJECT] Verification failed in DB: ${result.error}`);
+      console.warn(`[PrayerRoutes:verify-qr:REJECT] Verification failed in DB: ${result?.error}`);
       res.status(400).json({
         success: false,
         error: 'VERIFICATION_FAILED',
@@ -490,25 +525,41 @@ const handlePrayerVerification = async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    // Log security audit event for quarantine
+    // SAFE POST-ATTENDANCE LOGIC:
+    // The prayer attendance has been successfully recorded and committed in the database.
+    // Any optional step below (audit logging, token evaluation, count queries) MUST NEVER
+    // cause this request to throw a 500 SERVER_ERROR.
     if (securityStatus === 'quarantined') {
-      await db.logSecurityEvent(
-        user.id,
-        targetDateStr,
-        'quarantine',
-        riskScore,
-        `Quarantined due to: ${riskReasons.join(', ')}`
-      );
+      try {
+        await db.logSecurityEvent(
+          user.id,
+          targetDateStr,
+          'quarantine',
+          riskScore,
+          `Quarantined due to: ${riskReasons.join(', ')}`
+        );
+      } catch (logErr: any) {
+        console.warn('[PrayerRoutes:verify] Quarantine audit log warning:', logErr.message);
+      }
     }
 
     // Get updated count for targetDateStr (only non-quarantined count)
-    const dateAttendances = await db.getUserTodayAttendances(user.id, targetDateStr);
-    const completedCount = dateAttendances.length;
+    let completedCount = 1;
+    try {
+      const dateAttendances = await db.getUserTodayAttendances(user.id, targetDateStr);
+      completedCount = dateAttendances.length;
+    } catch (countErr: any) {
+      console.warn('[PrayerRoutes:verify] Today attendances count query warning:', countErr.message);
+    }
 
     // Automatic token evaluation & generation for targetDateStr (Only if not quarantined)
     let tokenResult: { generated: boolean; token?: any; action: string } = { generated: false, token: undefined, action: 'quarantined' };
     if (securityStatus !== 'quarantined') {
-      tokenResult = await db.generateOrUpdateDailyToken(user.id, targetDateStr);
+      try {
+        tokenResult = await db.generateOrUpdateDailyToken(user.id, targetDateStr);
+      } catch (tokenErr: any) {
+        console.warn('[PrayerRoutes:verify] Daily token generation warning:', tokenErr.message);
+      }
     }
 
     let tokenMessage: string | null = null;
@@ -532,6 +583,14 @@ const handlePrayerVerification = async (req: AuthRequest, res: Response) => {
 
     console.log(`[PrayerRoutes:verify-qr:SUCCESS] Completed verify-qr for user=${user.id}, targetDate=${targetDateStr}, securityStatus=${securityStatus}`);
 
+    const safeMosqueObj = {
+      id: mosqueToUse?.id || (result.record as any)?.mosqueId || 'MSQ-UNKNOWN',
+      name: mosqueToUse?.name || (result.record as any)?.mosqueName || 'Mosque',
+      nameBn: mosqueToUse?.nameBn || mosqueToUse?.name || (result.record as any)?.mosqueName || 'মসজিদ',
+      area: mosqueToUse?.area || 'ঢাকা',
+      district: mosqueToUse?.district || 'ঢাকা'
+    };
+
     res.json({
       success: true,
       message: userMsg,
@@ -541,15 +600,9 @@ const handlePrayerVerification = async (req: AuthRequest, res: Response) => {
       attendance: result.record,
       prayerDate: targetDateStr,
       hijriDate: getHijriDateString(checkInTimestamp),
-      mosque: {
-        id: mosqueToUse.id,
-        name: mosqueToUse.name,
-        nameBn: mosqueToUse.nameBn,
-        area: mosqueToUse.area,
-        district: mosqueToUse.district
-      },
+      mosque: safeMosqueObj,
       prayerType,
-      prayerNameBn: PRAYER_NAMES_BN[prayerType as PrayerType],
+      prayerNameBn: PRAYER_NAMES_BN[prayerType as PrayerType] || prayerType,
       todayCompletedCount: completedCount,
       summaryText: securityStatus === 'quarantined' ? 'পর্যালোচনার অপেক্ষায় (কোয়ারেন্টাইনড)' : `আজ ${toBengaliNumeral(completedCount)}/৫ ওয়াক্ত জামাতে নামাজ সম্পন্ন`,
       tokenResult: tokenResult.token ? {
@@ -560,6 +613,25 @@ const handlePrayerVerification = async (req: AuthRequest, res: Response) => {
     });
   } catch (err: any) {
     console.error('verify-qr error:', err);
+    // If the database record was already successfully committed, do not return a failure 500 error!
+    if (result && result.success && result.record) {
+      console.warn('[PrayerRoutes:verify] Post-save error occurred, but returning successful attendance record.');
+      res.json({
+        success: true,
+        message: 'আলহামদুলিল্লাহ্! আপনার নামাজটি সম্পন্ন হিসেবে সংরক্ষণ করা হয়েছে।',
+        securityStatus: securityStatus || 'verified',
+        riskScore: riskScore || 0,
+        riskReasons: riskReasons || [],
+        attendance: result.record,
+        prayerDate: targetDateStr || getTodayDateString(),
+        prayerType,
+        prayerNameBn: PRAYER_NAMES_BN[prayerType as PrayerType] || prayerType,
+        todayCompletedCount: 1,
+        summaryText: 'আজকের সালাত সফলভাবে সম্পন্ন হয়েছে।'
+      });
+      return;
+    }
+
     res.status(500).json({
       success: false,
       error: 'SERVER_ERROR',

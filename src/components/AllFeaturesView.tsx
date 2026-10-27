@@ -170,7 +170,7 @@ export const AllFeaturesView: React.FC<AllFeaturesViewProps> = ({
             <button
               type="button"
               onClick={onBack}
-              className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className="p-2 rounded-none bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
               title={isBn ? 'ফিরে যান' : 'Go Back'}
             >
               <ArrowLeft className="w-5 h-5" />
@@ -188,8 +188,8 @@ export const AllFeaturesView: React.FC<AllFeaturesViewProps> = ({
         </div>
       </div>
 
-      {/* Main Feature Grid: Compact 3 items per row */}
-      <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5">
+      {/* Main Feature Grid: Compact 3 items per row with right-angled corners */}
+      <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
         {featureList.map((item) => {
           const Icon = item.icon;
 
@@ -198,12 +198,12 @@ export const AllFeaturesView: React.FC<AllFeaturesViewProps> = ({
               key={item.id}
               type="button"
               onClick={item.action}
-              className="flex flex-col items-center justify-center py-3 px-1 sm:py-4 sm:px-2 rounded-2xl text-center transition-all cursor-pointer group active:scale-95 shadow-xs gap-1.5 sm:gap-2 bg-[#031d16] hover:bg-[#052b20] border border-[#0b4233] hover:border-amber-400/50"
+              className="flex flex-col items-center justify-center py-2.5 px-1 sm:py-3.5 sm:px-2 rounded-none text-center transition-all cursor-pointer group active:scale-95 shadow-xs gap-1.5 bg-[#031d16] hover:bg-[#052b20] border border-[#0b4233] hover:border-amber-400/50"
             >
               {/* Icon Wrapper */}
               <div className="relative shrink-0">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center transition-transform group-hover:scale-105 shadow-inner bg-[#072c21] border border-[#0f543e] text-amber-400">
-                  <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" />
+                <div className="w-9 h-9 rounded-none flex items-center justify-center transition-transform group-hover:scale-105 shadow-inner bg-[#072c21] border border-[#0f543e] text-amber-400">
+                  <Icon className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-400" />
                 </div>
               </div>
 

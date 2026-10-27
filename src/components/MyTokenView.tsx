@@ -109,6 +109,7 @@ export const MyTokenView: React.FC<MyTokenViewProps> = ({
       setShowDonationConfirmModal(false);
       setSelectedTokenForDonation(null);
       await fetchTokens();
+      setActiveTab('donated');
     } catch (err: any) {
       console.error('Donate token error:', err);
       if (onShowToast) {
@@ -203,9 +204,11 @@ export const MyTokenView: React.FC<MyTokenViewProps> = ({
     }
   };
 
-  const availableTokens = tokenData?.availableTokens || [];
+  const availableTokens = (tokenData?.availableTokens || []).filter(t => !t.isDonated);
   const usedTokens = tokenData?.usedTokens || [];
-  const donatedTokens = [...availableTokens, ...usedTokens].filter(t => t.isDonated);
+  const donatedTokens = tokenData?.donatedTokens && tokenData.donatedTokens.length > 0
+    ? tokenData.donatedTokens
+    : [...(tokenData?.usedTokens || []), ...(tokenData?.availableTokens || [])].filter(t => t.isDonated);
   const canRedeemToday = tokenData ? tokenData.canRedeemToday : true;
   const dailyWarning = tokenData?.dailyRedeemWarning;
 
@@ -263,39 +266,34 @@ export const MyTokenView: React.FC<MyTokenViewProps> = ({
 
   return (
     <div id="my-token-view-container" className="space-y-4 sm:space-y-5 pb-24 text-slate-100 max-w-5xl mx-auto">
-      {/* Top Header Card */}
-      <div className="bg-gradient-to-br from-emerald-950/80 via-slate-900 to-amber-950/70 border border-emerald-500/30 rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-xl relative overflow-hidden">
-        {/* Subtle decorative glow */}
-        <div className="absolute -right-8 -top-8 w-36 h-36 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
-
-        <div className="flex items-center justify-between gap-3 relative z-10">
-          <div className="space-y-1">
-            <h1 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
-              {t('token.title')}
-            </h1>
-            <p className="text-xs text-slate-300 leading-relaxed max-w-md">
-              {language === 'bn' ? 'আর সম্মান তো কেবল আল্লাহর, তাঁর রাসূলের এবং মুমিনদের; কিন্তু মুনাফিকরা তা জানে না' : 'And honor belongs to Allah, and to His Messenger, and to the believers...'}
-            </p>
-          </div>
-
-          <button
-            id="refresh-tokens-btn"
-            onClick={fetchTokens}
-            disabled={isLoading}
-            className="p-2.5 rounded-xl sm:rounded-2xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 text-emerald-400 hover:text-emerald-300 transition-all shrink-0 active:scale-95 cursor-pointer"
-            title={language === 'bn' ? 'রিফ্রেশ করুন' : 'Refresh'}
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </button>
+      {/* Top Header written directly on background wall */}
+      <div className="py-1 px-1 text-white flex items-center justify-between gap-3">
+        <div className="space-y-0.5">
+          <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight">
+            {t('token.title')}
+          </h1>
+          <p className="text-xs text-emerald-200/80 leading-relaxed max-w-md">
+            {language === 'bn' ? 'আর সম্মান তো কেবল আল্লাহর, তাঁর রাসূলের এবং মুমিনদের; কিন্তু মুনাফিকরা তা জানে না' : 'And honor belongs to Allah, and to His Messenger, and to the believers...'}
+          </p>
         </div>
+
+        <button
+          id="refresh-tokens-btn"
+          onClick={fetchTokens}
+          disabled={isLoading}
+          className="p-2.5 rounded-none bg-[#022119] hover:bg-[#033628] border border-[#0a4838] text-amber-300 hover:text-amber-200 transition-all shrink-0 active:scale-95 cursor-pointer"
+          title={language === 'bn' ? 'রিফ্রেশ করুন' : 'Refresh'}
+        >
+          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+        </button>
       </div>
 
       {/* Tabs Navigation: Available Tokens vs Used Tokens History vs Donated */}
-      <div className="flex items-center gap-1.5 p-1.5 bg-slate-900/90 border border-slate-800/80 rounded-2xl overflow-x-auto scrollbar-none">
+      <div className="flex items-center gap-1.5 p-1 bg-slate-900/90 border border-slate-800/80 rounded-none overflow-x-auto scrollbar-none">
         <button
           id="tab-available-tokens"
           onClick={() => setActiveTab('available')}
-          className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
+          className={`flex-1 py-2 px-2.5 rounded-none text-xs font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
             activeTab === 'available'
               ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
@@ -308,7 +306,7 @@ export const MyTokenView: React.FC<MyTokenViewProps> = ({
         <button
           id="tab-used-tokens"
           onClick={() => setActiveTab('used')}
-          className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
+          className={`flex-1 py-2 px-2.5 rounded-none text-xs font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
             activeTab === 'used'
               ? 'bg-slate-800 text-slate-100 border border-slate-700 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
@@ -321,7 +319,7 @@ export const MyTokenView: React.FC<MyTokenViewProps> = ({
         <button
           id="tab-donated-tokens"
           onClick={() => setActiveTab('donated')}
-          className={`flex-1 py-2 px-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
+          className={`flex-1 py-2 px-2.5 rounded-none text-xs font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
             activeTab === 'donated'
               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
               : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
@@ -594,16 +592,46 @@ export const MyTokenView: React.FC<MyTokenViewProps> = ({
               </button>
             </div>
           )}
+          {/* Banner if there are pledged donated tokens waiting to be spent */}
+          {availableTokens.filter(t => t.isDonated).length > 0 && (
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-rose-950/40 via-amber-950/30 to-slate-900 border border-rose-500/30 flex items-start gap-3">
+              <Heart className="w-5 h-5 text-rose-400 shrink-0 mt-0.5 animate-pulse" />
+              <div className="space-y-1 text-xs">
+                <span className="font-bold text-white block">
+                  {language === 'bn' 
+                    ? `আপনার ${toBnNumber(availableTokens.filter(t => t.isDonated).length)}টি দানকৃত টোকেন খরচের অপেক্ষায় রয়েছে`
+                    : `${availableTokens.filter(t => t.isDonated).length} donated token(s) waiting to be spent`}
+                </span>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  {language === 'bn'
+                    ? 'কোনো টোকেনের পূর্বনির্ধারিত নির্দিষ্ট দাম নেই। আপনি যখন কোনো পার্টনার দোকানে বা পণ্য চেকআউটে দানকৃত টোকেনটি খরচ করবেন, তখন আপনার প্রাপ্য মূল্য ছাড় ফেরত না নিয়ে পূর্ণ মূল্যে কেনার মাধ্যমে সেই সমপরিমাণ অর্থ কেভ কম্প্যানিয়ন্স কল্যাণ তহবিলে দান হবে এবং এখানে ও কেভ জার্নিতে যুক্ত হবে।'
+                    : 'Tokens have no fixed predetermined price. When you spend a donated token at checkout, you pay full price and the waived discount amount is donated to the Welfare Fund and recorded here.'}
+                </p>
+                {onNavigateToShops && (
+                  <button
+                    onClick={onNavigateToShops}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg font-bold text-[10px] mt-1 cursor-pointer transition"
+                  >
+                    <span>{language === 'bn' ? 'কেনাকাটা করতে যান' : 'Go to Shops'}</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {donatedTokens.length === 0 ? (
             <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 text-center space-y-3">
               <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-400">
                 <Heart className="w-6 h-6 fill-current text-emerald-500 animate-pulse" />
               </div>
               <h3 className="text-xs sm:text-sm font-bold text-white">
-                {t('token.noTokensDonated')}
+                {language === 'bn' ? 'কোনো বাস্তবায়িত দান নেই' : 'No Realized Donations Yet'}
               </h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
-                {language === 'bn' ? 'আপনার অর্জিত গোল্ড, সিলভার বা ব্রোঞ্জ টোকেনগুলো দান করে দিন। এর ফলে ক্রয়ের ডিসকাউন্ট অর্থ সরাসরি আপনার পছন্দের মসজিদের কল্যাণ তহবিলে যুক্ত হবে।' : 'Donate your earned Gold, Silver, or Bronze tokens. The discount amount will be donated directly to your selected mosque charity fund.'}
+                {language === 'bn' 
+                  ? 'আপনার অর্জিত টোকেন দান হিসেবে বাছাই করে কেনাকাটায় খরচ করলেই প্রাপ্য ছাড়ের অর্থ কেন্দ্রীয় কল্যাণ তহবিলে দান হিসেবে এখানে জমা হবে।' 
+                  : 'Pledge an earned token and spend it at checkout to realize your donation to the central welfare fund.'}
               </p>
             </div>
           ) : (
@@ -638,7 +666,7 @@ export const MyTokenView: React.FC<MyTokenViewProps> = ({
                       <div className="flex items-center gap-1.5">
                         <span className="px-1.5 py-0.2 rounded text-[8px] font-extrabold bg-emerald-600 text-white flex items-center gap-0.5 border border-emerald-500">
                           <Heart className="w-2.5 h-2.5 fill-current shrink-0" />
-                          <span>{language === 'bn' ? 'দানকৃত' : 'Donated'}</span>
+                          <span>{language === 'bn' ? 'বাস্তবায়িত দান' : 'Realized'}</span>
                         </span>
 
                         <button
@@ -655,24 +683,21 @@ export const MyTokenView: React.FC<MyTokenViewProps> = ({
 
                     <div className="text-[10px] text-slate-300 space-y-1 pt-2 border-t border-emerald-500/10">
                       <p className="truncate">{language === 'bn' ? 'অর্জিত:' : 'Earned:'} {formatFormattedDate(token.earnedDate)}</p>
-                      {token.earnedMosqueName && (
-                        <p className="text-emerald-400 font-bold truncate flex items-center gap-1">
-                          <Store className="w-3 h-3 text-emerald-400 shrink-0" />
-                          <span>{language === 'bn' ? 'মসজিদ:' : 'Mosque:'} {token.earnedMosqueName}</span>
-                        </p>
-                      )}
-                      <div className="flex items-center justify-between gap-1.5 pt-1">
-                        <span className="text-[9px] text-slate-500 font-mono truncate">
-                          {language === 'bn' ? 'আইডি:' : 'ID:'} {token.id}
+                      <p className="text-emerald-400 font-bold truncate flex items-center gap-1">
+                        <Heart className="w-3 h-3 text-rose-400 shrink-0" />
+                        <span>{language === 'bn' ? 'তহবিল: কেন্দ্রীয় কল্যাণ তহবিল (Cave Companions)' : 'Fund: Central Welfare Fund'}</span>
+                      </p>
+                      <div className="flex items-center justify-between gap-1.5 pt-1.5 border-t border-emerald-500/10">
+                        <span className="text-[10px] text-amber-300 font-extrabold flex items-center gap-1">
+                          <Heart className="w-3 h-3 fill-current text-rose-400" />
+                          <span>
+                            {language === 'bn' 
+                              ? `দানকৃত অর্থ: ৳${toBnNumber(token.donatedAmount || 0)}` 
+                              : `Donated: ৳${token.donatedAmount || 0}`}
+                          </span>
                         </span>
-                        <span className={`px-1.5 py-0.2 rounded text-[8px] font-bold ${
-                          token.status === 'USED' 
-                            ? 'bg-slate-800 text-slate-400 border border-slate-700' 
-                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                        }`}>
-                          {token.status === 'USED' 
-                            ? (language === 'bn' ? 'ব্যবহৃত' : 'USED') 
-                            : (language === 'bn' ? 'ব্যবহারযোগ্য' : 'AVAILABLE')}
+                        <span className="px-2 py-0.5 rounded text-[8px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                          {language === 'bn' ? 'দান সম্পন্ন' : 'COMPLETED'}
                         </span>
                       </div>
                     </div>
@@ -857,15 +882,27 @@ export const MyTokenView: React.FC<MyTokenViewProps> = ({
               <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2 text-xs text-slate-300 leading-relaxed">
                 <div className="flex items-start gap-2 text-[11px]">
                   <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>{language === 'bn' ? 'টোকেনটির মেয়াদ শেষ হবে না, আপনি এটি দোকানে ব্যবহার করতে পারবেন।' : 'The token will not expire, you can redeem it at shops.'}</span>
+                  <span>
+                    {language === 'bn' 
+                      ? 'টোকেনটি দানের জন্য চিহ্নিত হবে এবং পণ্য চেকআউটের সময় আপনি এটি নির্বাচন করতে পারবেন।' 
+                      : 'The token will be pledged for donation and available to select during checkout.'}
+                  </span>
                 </div>
                 <div className="flex items-start gap-2 text-[11px]">
                   <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>{language === 'bn' ? 'দোকানে ব্যবহারের সময় আপনি কোনো ব্যক্তিগত ডিসকাউন্ট পাবেন না (ফুল বিল দিতে হবে)।' : 'No personal discount will be deducted from your bill.'}</span>
+                  <span>
+                    {language === 'bn' 
+                      ? 'চেকআউটে দানকৃত টোকেন নির্বাচন করলে কোনো মূল্য ছাড় পাবেন না—নির্ধারিত পূর্ণ মূল্য দিয়েই পণ্য কিনতে হবে।' 
+                      : 'Selecting a donated token gives no discount—you must pay the full regular price.'}
+                  </span>
                 </div>
                 <div className="flex items-start gap-2 text-[11px]">
                   <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                  <span>{language === 'bn' ? 'আপনার ভাগের ডিসকাউন্টের সমপরিমাণ অর্থ মসজিদের তহবিলে সরাসরি দান হিসেবে জমা হবে।' : 'The entire discount value goes directly to the mosque welfare fund.'}</span>
+                  <span>
+                    {language === 'bn' 
+                      ? 'দোকানে ছাড় না নিয়ে পূর্ণ মূল্যে কেনার ফলে প্রাপ্য ছাড়ের সমপরিমাণ অর্থ কেভ কম্প্যানিয়ন্স থেকে কেন্দ্রীয় কল্যাণ তহবিলে দান হবে এবং তখনই আপনার ডোনেটেড সেকশন ও কেভ জার্নিতে যুক্ত হবে।' 
+                      : 'The waived discount amount is donated by Cave Companions to the Central Welfare Fund and will be credited to your Donated section and Cave Journey upon checkout.'}
+                  </span>
                 </div>
               </div>
 

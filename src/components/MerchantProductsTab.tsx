@@ -766,12 +766,11 @@ export const MerchantProductsTab: React.FC = () => {
                   {/* DESCRIPTION */}
                 <div className="relative z-10">
                   <label htmlFor="merchant-product-desc-input" className="block text-xs font-bold text-slate-800 mb-1 cursor-pointer select-none touch-manipulation">
-                    বিবরণ <span className="text-rose-500">*</span>
+                    বিবরণ <span className="text-slate-400 font-normal">(ঐচ্ছিক)</span>
                   </label>
                   <textarea
                     id="merchant-product-desc-input"
                     name="productDescription"
-                    required
                     rows={3}
                     inputMode="text"
                     autoComplete="off"

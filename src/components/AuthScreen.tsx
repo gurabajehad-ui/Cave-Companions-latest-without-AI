@@ -441,13 +441,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     try {
       const ok = await registerVerify(phone.trim() || identifier.trim(), otpCode.trim());
       if (ok) {
-        logout();
-        setSuccessMessage(t('auth.verifySuccessMessage'));
-        setIdentifier(phone.trim());
-        setPassword('');
-        setConfirmPassword('');
-        setOtpCode('');
-        setMode('login');
+        setIsLoading(false);
+        if (onSuccess) {
+          onSuccess();
+        }
       }
     } catch (err: any) {
       setErrorMessage(err.message || t('auth.otpVerifyErr'));

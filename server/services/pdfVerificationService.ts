@@ -1,4 +1,4 @@
-import { pool } from '../pg';
+import { query } from '../pg';
 import crypto from 'crypto';
 
 export interface PDFVerification {
@@ -14,7 +14,7 @@ export interface PDFVerification {
 export const PDFVerificationService = {
   async createVerification(reportType: string, shopName: string, recordCount: number, totalAmount: number, metadata: any = {}): Promise<string> {
     const id = 'VRF-' + crypto.randomBytes(16).toString('hex').toUpperCase();
-    await pool.query(
+    await query(
       `INSERT INTO pdf_verifications (id, report_type, shop_name, record_count, total_amount, metadata)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [id, reportType, shopName, recordCount, totalAmount, JSON.stringify(metadata)]
@@ -23,7 +23,7 @@ export const PDFVerificationService = {
   },
 
   async getVerification(id: string): Promise<PDFVerification | null> {
-    const res = await pool.query(`SELECT * FROM pdf_verifications WHERE id = $1`, [id]);
+    const res = await query(`SELECT * FROM pdf_verifications WHERE id = $1`, [id]);
     if (res.rows.length === 0) return null;
     const row = res.rows[0];
     return {

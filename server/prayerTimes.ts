@@ -1,4 +1,5 @@
-import adhan from 'adhan';
+import * as adhanModule from 'adhan';
+const adhan: any = (adhanModule as any).default || adhanModule;
 const Coordinates = adhan.Coordinates;
 const CalculationMethod = adhan.CalculationMethod;
 const PrayerTimes = adhan.PrayerTimes;

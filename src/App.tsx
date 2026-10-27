@@ -628,15 +628,16 @@ export default function App() {
     userLoggedInRef.current = !!user;
   }, [user]);
 
-  // Synchronize activeTab state changes to URL path
+  // Synchronize activeTab state changes to URL path (debounced to avoid blocking compositor animations)
   useEffect(() => {
-    if (activeTab) {
+    if (!activeTab) return;
+
+    const timer = setTimeout(() => {
       const currentPath = window.location.pathname;
       const search = window.location.search;
       let targetPath = '/';
       
       if (activeTab === 'admin') {
-        // Let AdminDashboardView handle sub-paths, but ensure we are on /admin...
         if (!currentPath.startsWith('/admin')) {
           targetPath = '/admin/analytics';
         } else {
@@ -651,7 +652,9 @@ export default function App() {
       if (currentPath !== targetPath) {
         window.history.pushState(null, '', `${targetPath}${search}`);
       }
-    }
+    }, 250);
+
+    return () => clearTimeout(timer);
   }, [activeTab]);
 
   // User cached location ref with timestamp to prevent repeated GPS requests within 45 seconds
@@ -1042,12 +1045,12 @@ export default function App() {
   const completedCount = todayStatus ? todayStatus.completedCount : 0;
 
   return (
-    <div className="min-h-screen bg-[var(--bg-app)] text-[var(--text-app)] flex flex-col selection:bg-emerald-600 selection:text-white pb-16">
+    <div className="min-h-screen bg-[var(--bg-app)] text-[var(--text-app)] flex flex-col selection:bg-emerald-600 selection:text-white pb-0">
       {/* Toast Notification Container */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
       {/* Top Header */}
-      {activeTab === 'home' && (
+      <div className={activeTab === 'home' ? 'contents' : 'hidden'}>
         <Header
           onOpenNotifications={handleOpenNotifications}
           unreadNotificationsCount={unreadNotificationsCount}
@@ -1056,13 +1059,12 @@ export default function App() {
           onOpenTasbih={handleOpenTasbih}
           onOpenAllFeatures={handleOpenAllFeatures}
         />
-      )}
+      </div>
 
       {/* Main Content Area */}
-      <main className={`flex-1 w-full ${activeTab === 'cave_circle' || activeTab === 'notifications' ? 'max-w-4xl px-1 sm:px-2' : activeTab === 'all_features' ? 'max-w-2xl px-1 sm:px-2' : 'max-w-2xl px-1 sm:px-3'} mx-auto pb-5 ${activeTab === 'home' ? 'pt-1.5' : 'pt-2.5 sm:pt-4'}`}>
+      <main className={`flex-1 w-full ${activeTab === 'cave_circle' || activeTab === 'notifications' ? 'max-w-4xl px-1 sm:px-2' : activeTab === 'all_features' ? 'max-w-2xl px-1 sm:px-2' : activeTab === 'home' || activeTab === 'profile' ? 'max-w-2xl px-0' : 'max-w-2xl px-1 sm:px-3'} mx-auto pb-14 sm:pb-16 ${activeTab === 'home' ? 'pt-1.5' : 'pt-2.5 sm:pt-4'}`}>
         {/* Tab 1: HOME */}
-        {activeTab === 'home' && (
-          <div className="space-y-3 sm:space-y-3.5">
+        <div className={activeTab === 'home' ? 'space-y-2 sm:space-y-2.5' : 'hidden'}>
             <AdBanner pageName="HOME" placementSlot="TOP" />
             
             {/* Daily Progress Counter Card with Built-In Arc Countdown Timer */}
@@ -1076,6 +1078,13 @@ export default function App() {
               onOpenJourney={handleOpenJourney}
               onOpenTokens={handleOpenTokens}
               onOpenTokenRules={handleOpenTokenRules}
+            />
+
+            {/* Feature Discovery Auto-Rotating Card */}
+            <FeatureDiscoveryTicker
+              onNavigateTab={(tab) => setActiveTab(tab as ActiveTab)}
+              onOpenQibla={handleOpenQibla}
+              onOpenMosques={() => setShowMosqueModal(true)}
             />
 
             <AdBanner pageName="HOME" placementSlot="BEFORE_PRODUCTS" />
@@ -1152,13 +1161,6 @@ export default function App() {
               todayDateStr={todayDateStr}
             />
 
-            {/* Feature Discovery Auto-Rotating Card */}
-            <FeatureDiscoveryTicker
-              onNavigateTab={(tab) => setActiveTab(tab as ActiveTab)}
-              onOpenQibla={handleOpenQibla}
-              onOpenMosques={() => setShowMosqueModal(true)}
-            />
-
             <AdBanner pageName="HOME" placementSlot="MIDDLE" />
 
             {/* Sahri and Iftar Timetable Card (Salafi Principles, GPS-based) */}
@@ -1172,7 +1174,6 @@ export default function App() {
 
             <AdBanner pageName="HOME" placementSlot="BOTTOM" />
           </div>
-        )}
 
         {/* Tab 2: MY TOKENS (Phase 4 & 5) */}
         {activeTab === 'tokens' && (
@@ -1204,7 +1205,7 @@ export default function App() {
         )}
 
         {/* Tab 5: PROFILE */}
-        {activeTab === 'profile' && (
+        <div className={activeTab === 'profile' ? 'w-full' : 'hidden'}>
           <React.Suspense fallback={<ViewLoadingFallback />}>
             <ProfileView
               onLogout={handleLogoutAction}
@@ -1216,7 +1217,7 @@ export default function App() {
               onOpenMosques={handleOpenMosques}
             />
           </React.Suspense>
-        )}
+        </div>
 
         {/* Tab 5.5: QURAN MAJID MODULE */}
         {activeTab === 'quran' && (

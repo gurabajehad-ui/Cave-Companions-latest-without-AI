@@ -4058,5 +4058,39 @@ adminRoutes.post('/moderation/events/:id/withdraw', requireAdmin, async (req: an
   }
 });
 
+/**
+ * POST /api/admin/moderation/reports/:id/action
+ * Execute admin decision on a user moderation report ('RESOLVED' | 'DISMISSED' | 'REMOVE_MESSAGE')
+ */
+adminRoutes.post('/moderation/reports/:id/action', requireAdmin, async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+    const { action } = req.body; // 'RESOLVED' | 'DISMISSED' | 'REMOVE_MESSAGE'
+
+    const reportRes = await query(`SELECT * FROM moderation_reports WHERE id = $1`, [id]);
+    if (reportRes.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'রিপোর্ট পাওয়া যায়নি' });
+    }
+    const report = reportRes.rows[0];
+
+    if (action === 'REMOVE_MESSAGE' && report.message_id) {
+      await query(`DELETE FROM circle_messages WHERE id = $1`, [report.message_id]);
+    }
+
+    const newStatus = action === 'DISMISSED' ? 'DISMISSED' : 'RESOLVED';
+    await query(`
+      UPDATE moderation_reports 
+      SET status = $1 
+      WHERE id = $2
+    `, [newStatus, id]);
+
+    res.json({ success: true, message: 'রিপোর্ট সফলভাবে আপডেট করা হয়েছে।' });
+  } catch (err: any) {
+    console.error('[Admin Moderation] Report action error:', err);
+    res.status(500).json({ success: false, message: 'রিপোর্ট আপডেট ব্যর্থ হয়েছে: ' + err.message });
+  }
+});
+
+
 
 
