@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
+import multer from 'multer';
 import { db, SupportTicketStatus, ShopStatus, AdminPermission } from '../db.js';
 import { generateAdminToken, verifyAdminToken, verifyUserToken, verifyMerchantToken } from '../auth.js';
 import { NotificationService } from '../services/notificationService.js';
@@ -21,24 +22,42 @@ import { query } from '../pg.js';
 
 export const adminRoutes = Router();
 
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 100 * 1024 * 1024 // 100MB
+  }
+});
+
 // =====================================
 // Advertisement Media Upload
 // =====================================
-// Media & Video Upload
+// Media & Video Upload (Supports browser-native FormData multipart & JSON base64)
 // =====================================
-adminRoutes.post('/upload-media', requireAdmin, async (req: any, res: any) => {
+adminRoutes.post('/upload-media', requireAdmin, upload.single('file'), async (req: any, res: any) => {
   try {
-    const { fileData, fileName } = req.body;
-    if (!fileData) {
-      res.status(400).json({ success: false, message: 'Missing file data' });
+    let buffer: Buffer;
+    let fileName: string;
+    let mimeType: string;
+
+    if (req.file) {
+      // 1. Standard browser-native multipart binary upload
+      buffer = req.file.buffer;
+      fileName = req.file.originalname || `media_${Date.now()}`;
+      mimeType = req.file.mimetype || 'image/jpeg';
+    } else if (req.body && req.body.fileData) {
+      // 2. Backward compatibility JSON base64 fallback
+      const { fileData, fileName: bodyFileName } = req.body;
+      const base64Data = String(fileData).replace(/^data:([A-Za-z-+/]+);base64,/, '');
+      const mimeMatch = String(fileData).match(/^data:([A-Za-z-+/]+);base64,/);
+      mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      buffer = Buffer.from(base64Data, 'base64');
+      fileName = bodyFileName || `media_${Date.now()}`;
+    } else {
+      res.status(400).json({ success: false, message: 'Missing file data (form-data or JSON)' });
       return;
     }
-    
-    const base64Data = fileData.replace(/^data:([A-Za-z-+/]+);base64,/, '');
-    const mimeMatch = fileData.match(/^data:([A-Za-z-+/]+);base64,/);
-    const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-    
-    const buffer = Buffer.from(base64Data, 'base64');
+
     const isVideo = mimeType.startsWith('video/') || (fileName && /\.(mp4|webm|mov|mkv|avi|ogg)$/i.test(fileName));
     const maxSize = isVideo ? 100 * 1024 * 1024 : 15 * 1024 * 1024;
     

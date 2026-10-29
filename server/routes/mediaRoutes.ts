@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
+import multer from 'multer';
 import { db } from '../db.js';
 
 export const mediaRoutes = Router();
@@ -9,6 +11,14 @@ const MEDIA_CACHE_DIR = path.join(process.cwd(), 'uploads', 'media');
 if (!fs.existsSync(MEDIA_CACHE_DIR)) {
   fs.mkdirSync(MEDIA_CACHE_DIR, { recursive: true });
 }
+
+// Standard Multer multipart memory storage for binary streaming & persistence
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 100 * 1024 * 1024 // 100MB max for video, 15MB for images
+  }
+});
 
 /**
  * GET /api/media/images/:id
@@ -130,5 +140,69 @@ mediaRoutes.get('/videos/:id', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('Serve video error:', err);
     res.status(500).send('Internal Server Error');
+  }
+});
+
+/**
+ * POST /api/media/upload
+ * Standard browser-native multipart/form-data upload using multer.
+ * Accepts binary file in FormData field 'file' or 'media', with base64 JSON fallback.
+ */
+mediaRoutes.post('/upload', upload.single('file'), async (req: Request, res: Response) => {
+  try {
+    let buffer: Buffer;
+    let fileName: string;
+    let mimeType: string;
+
+    if (req.file) {
+      // 1. Standard browser-native multipart binary upload
+      buffer = req.file.buffer;
+      fileName = req.file.originalname || `upload_${Date.now()}`;
+      mimeType = req.file.mimetype || 'image/jpeg';
+    } else if (req.body && req.body.fileData) {
+      // 2. Backward compatibility JSON base64 fallback
+      const { fileData, fileName: bodyFileName } = req.body;
+      const base64Data = String(fileData).replace(/^data:([A-Za-z-+/]+);base64,/, '');
+      const mimeMatch = String(fileData).match(/^data:([A-Za-z-+/]+);base64,/);
+      mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      buffer = Buffer.from(base64Data, 'base64');
+      fileName = bodyFileName || `upload_${Date.now()}`;
+    } else {
+      res.status(400).json({ success: false, message: 'ফাইল প্রদান করা হয়নি (No file provided in form-data or JSON)' });
+      return;
+    }
+
+    const isVideo = mimeType.startsWith('video/') || /\.(mp4|webm|mov|mkv|avi|ogg)$/i.test(fileName);
+    const maxSize = isVideo ? 100 * 1024 * 1024 : 15 * 1024 * 1024;
+
+    if (buffer.length > maxSize) {
+      res.status(400).json({
+        success: false,
+        message: isVideo ? 'ভিডিও ফাইলটি ১০০ মেগাবাইটের বেশি হতে পারবে না (File exceeds 100MB)' : 'ফাইলটি ১৫ মেগাবাইটের বেশি হতে পারবে না (File exceeds 15MB)'
+      });
+      return;
+    }
+
+    const cleanExt = path.extname(fileName) || (isVideo ? '.mp4' : '.jpg');
+    const mediaId = `${crypto.randomUUID()}${cleanExt}`;
+    const diskPath = path.join(MEDIA_CACHE_DIR, mediaId);
+
+    // Write to disk cache for instantaneous streaming
+    fs.writeFileSync(diskPath, buffer);
+
+    // Durable persistence in PostgreSQL uploaded_media table
+    await db.saveUploadedMedia({ id: mediaId, filename: fileName, mimeType, buffer });
+
+    const mediaUrl = isVideo ? `/api/media/videos/${mediaId}` : `/api/media/images/${mediaId}`;
+    res.json({
+      success: true,
+      url: mediaUrl,
+      fileName,
+      mimeType,
+      size: buffer.length
+    });
+  } catch (err: any) {
+    console.error('Media upload error:', err);
+    res.status(500).json({ success: false, message: 'Upload failed: ' + (err.message || 'Server error') });
   }
 });

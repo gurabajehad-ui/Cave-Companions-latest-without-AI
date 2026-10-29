@@ -25,7 +25,7 @@ if (isProd && fs.existsSync(distBundle)) {
   // Always run live dev server with Vite middleware
   try {
     await import('./server/index.ts');
-  } catch (err: any) {
+  } catch (err) {
     if (fs.existsSync(distBundle)) {
       await import(`file://${distBundle}`);
     } else if (fs.existsSync(rootBundle)) {

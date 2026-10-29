@@ -179,17 +179,204 @@
       "gold_discount_rate": 15,
       "silver_discount_rate": 10,
       "bronze_discount_rate": 7,
-      "updated_at": "2026-10-22T09:23:54.812Z"
+      "updated_at": "2026-10-29T07:40:13.140Z"
     }
   ],
-  "otps": [
+  "notification_templates": [
     {
-      "id": "01334015936",
-      "col_0": "01334015936",
-      "col_1": "6c17db4779437b57cfda1fd3f67562de3f19cdb726679aaa843eac5c599c3c75",
-      "col_2": "REGISTRATION_VERIFICATION",
-      "col_3": 1792661634726,
-      "col_4": "{\"fullName\":\"Test User\",\"phone\":\"01334015936\"}"
+      "id": "TPL-MOSQUE-SUBMITTED",
+      "event_type": "MOSQUE_APPLICATION_SUBMITTED",
+      "name": "Mosque Application Submitted",
+      "name_bn": "মসজিদ আবেদন জমা পড়েছে",
+      "title": "আপনার মসজিদের আবেদন জমা হয়েছে",
+      "title_bn": "আপনার মসজিদের আবেদন জমা হয়েছে",
+      "message": "Dear {{user_name}}, your mosque application for \"{{mosque_name}}\" has been submitted successfully.",
+      "message_bn": "আসসালামু আলাইকুম {{user_name}}। আপনার জমা দেওয়া \"{{mosque_name}}\" মসজিদের আবেদনটি সফলভাবে সিস্টেমে জমা হয়েছে। যাচাই শেষে আপডেট জানানো হবে।",
+      "is_active": true,
+      "available_variables": "[\"user_name\",\"mosque_name\",\"application_id\",\"date\"]"
+    },
+    {
+      "id": "TPL-MOSQUE-APPROVED",
+      "event_type": "MOSQUE_APPLICATION_APPROVED",
+      "name": "Mosque Application Approved",
+      "name_bn": "মসজিদ আবেদন অনুমোদিত",
+      "title": "আপনার মসজিদের আবেদন গৃহীত হয়েছে",
+      "title_bn": "আপনার মসজিদের আবেদন গৃহীত হয়েছে",
+      "message": "Dear {{user_name}}, your application for \"{{mosque_name}}\" has been approved!",
+      "message_bn": "আলহামদুলিল্লাহ {{user_name}}। আপনার জমা দেওয়া \"{{mosque_name}}\" মসজিদের আবেদনটি অনুমোদিত হয়েছে। এখন থেকে উক্ত মসজিদে কিউআর কোড স্ক্যান করে জামাত ট্র্যাকিং করতে পারবেন।",
+      "is_active": true,
+      "available_variables": "[\"user_name\",\"mosque_name\",\"application_id\",\"date\"]"
+    },
+    {
+      "id": "TPL-MOSQUE-REJECTED",
+      "event_type": "MOSQUE_APPLICATION_REJECTED",
+      "name": "Mosque Application Rejected",
+      "name_bn": "মসজিদ আবেদন প্রত্যাখ্যাত",
+      "title": "আপনার মসজিদের আবেদন পর্যালোচনা করা হয়েছে",
+      "title_bn": "আপনার মসজিদের আবেদন পর্যালোচনা করা হয়েছে",
+      "message": "Dear {{user_name}}, your application for \"{{mosque_name}}\" was not approved. Reason: {{rejection_reason}}",
+      "message_bn": "আসসালামু আলাইকুম {{user_name}}। আপনার জমা দেওয়া \"{{mosque_name}}\" মসজিদের আবেদনটি এই মুহূর্তে অনুমোদন করা সম্ভব হয়নি। কারণ: {{rejection_reason}}",
+      "is_active": true,
+      "available_variables": "[\"user_name\",\"mosque_name\",\"application_id\",\"rejection_reason\",\"date\"]"
+    },
+    {
+      "id": "TPL-TOKEN-EARNED",
+      "event_type": "TOKEN_EARNED",
+      "name": "Token Earned",
+      "name_bn": "টোকেন অর্জিত হয়েছে",
+      "title": "আপনি একটি নতুন টোকেন অর্জন করেছেন!",
+      "title_bn": "আপনি একটি নতুন টোকেন অর্জন করেছেন!",
+      "message": "Congratulations {{user_name}}! You earned a {{token_type}} token.",
+      "message_bn": "মাশাআল্লাহ {{user_name}}! জামাতে নিয়মিত নামাজের ধারাবাহিকতায় আপনি ১টি {{token_type}} টোকেন অর্জন করেছেন।",
+      "is_active": true,
+      "available_variables": "[\"user_name\",\"token_type\",\"date\"]"
+    },
+    {
+      "id": "TPL-TOKEN-UPGRADED",
+      "event_type": "TOKEN_UPGRADED",
+      "name": "Token Upgraded",
+      "name_bn": "টোকেন আপগ্রেড হয়েছে",
+      "title": "আপনার টোকেন আপগ্রেড করা হয়েছে!",
+      "title_bn": "আপনার টোকেন আপগ্রেড করা হয়েছে!",
+      "message": "Great news {{user_name}}! Your token was upgraded to {{token_type}}.",
+      "message_bn": "আলহামদুলিল্লাহ {{user_name}}! আপনার জামাতের ওয়াক্ত বৃদ্ধির ফলে টোকেনটি {{token_type}} টোকেনে আপগ্রেড হয়েছে।",
+      "is_active": true,
+      "available_variables": "[\"user_name\",\"token_type\",\"date\"]"
+    },
+    {
+      "id": "TPL-REDEMPTION-SUCCESS",
+      "event_type": "REDEMPTION_SUCCESSFUL",
+      "name": "Redemption Successful",
+      "name_bn": "রিডেম্পশন সফল হয়েছে",
+      "title": "রিডেম্পশন সফল হয়েছে!",
+      "title_bn": "রিডেম্পশন সফল হয়েছে!",
+      "message": "Dear {{user_name}}, your redemption of {{token_type}} token at {{shop_name}} was successful.",
+      "message_bn": "আলহামদুলিল্লাহ {{user_name}}। \"{{shop_name}}\" এ আপনার {{token_type}} টোকেন ব্যবহার করে রিডেম্পশন সফলভাবে সম্পন্ন হয়েছে।",
+      "is_active": true,
+      "available_variables": "[\"user_name\",\"token_type\",\"shop_name\",\"date\"]"
+    },
+    {
+      "id": "TPL-REDEMPTION-FAILED",
+      "event_type": "REDEMPTION_FAILED",
+      "name": "Redemption Failed",
+      "name_bn": "রিডেম্পশন ব্যর্থ হয়েছে",
+      "title": "রিডেম্পশন সম্পন্ন করা সম্ভব হয়নি",
+      "title_bn": "রিডেম্পশন সম্পন্ন করা সম্ভব হয়নি",
+      "message": "Dear {{user_name}}, your redemption attempt at {{shop_name}} failed.",
+      "message_bn": "আসসালামু আলাইকুম {{user_name}}। \"{{shop_name}}\" এ আপনার রিডেম্পশন প্রক্রিয়াটি সম্পন্ন করা সম্ভব হয়নি।",
+      "is_active": true,
+      "available_variables": "[\"user_name\",\"shop_name\",\"date\"]"
+    },
+    {
+      "id": "TPL-COUPON-AVAILABLE",
+      "event_type": "COUPON_AVAILABLE",
+      "name": "Coupon Available",
+      "name_bn": "নতুন কুপন অফার",
+      "title": "নতুন ডিসকাউন্ট কুপন পাওয়া যাচ্ছে!",
+      "title_bn": "নতুন ডিসকাউন্ট কুপন পাওয়া যাচ্ছে!",
+      "message": "Use coupon {{coupon_name}} for special discounts!",
+      "message_bn": "বিশেষ ডিসকাউন্ট কুপন \"{{coupon_name}}\" অফার পাওয়া যাচ্ছে! পার্টনার শপ থেকে অফার নিতে কুপনটি ব্যবহার করুন।",
+      "is_active": true,
+      "available_variables": "[\"user_name\",\"coupon_name\",\"date\"]"
+    },
+    {
+      "id": "TPL-COUPON-USED",
+      "event_type": "COUPON_USED",
+      "name": "Coupon Used",
+      "name_bn": "কুপন ব্যবহার করা হয়েছে",
+      "title": "কুপন ব্যবহার সম্পন্ন হয়েছে",
+      "title_bn": "কুপন ব্যবহার সম্পন্ন হয়েছে",
+      "message": "Dear {{user_name}}, coupon {{coupon_name}} was used at {{shop_name}}.",
+      "message_bn": "ধন্যবাদ {{user_name}}! আপনার \"{{coupon_name}}\" কুপনটি \"{{shop_name}}\" এ রিডিম করা হয়েছে।",
+      "is_active": true,
+      "available_variables": "[\"user_name\",\"coupon_name\",\"shop_name\",\"date\"]"
+    },
+    {
+      "id": "TPL-NEW-PARTNER-SHOP",
+      "event_type": "NEW_PARTNER_SHOP",
+      "name": "New Partner Shop",
+      "name_bn": "নতুন পার্টনার শপ",
+      "title": "নতুন পার্টনার শপ যুক্ত হয়েছে!",
+      "title_bn": "নতুন পার্টনার শপ যুক্ত হয়েছে!",
+      "message": "Welcome {{shop_name}} to Cave Companions!",
+      "message_bn": "আমাদের নেটওয়ার্কে নতুন পার্টনার শপ \"{{shop_name}}\" যুক্ত হয়েছে। আপনার টোকেন ব্যবহার করে ছাড় নিন।",
+      "is_active": true,
+      "available_variables": "[\"user_name\",\"shop_name\",\"date\"]"
+    },
+    {
+      "id": "TPL-SYSTEM-ANNOUNCEMENT",
+      "event_type": "SYSTEM_ANNOUNCEMENT",
+      "name": "System Announcement",
+      "name_bn": "সিস্টেম ঘোষণা",
+      "title": "কেভ কম্প্যানিয়নস বিশেষ ঘোষণা",
+      "title_bn": "কেভ কম্প্যানিয়নস বিশেষ ঘোষণা",
+      "message": "Announcement for {{user_name}}",
+      "message_bn": "আসসালামু আলাইকুম {{user_name}}। কেভ কম্প্যানিয়নস অ্যাপের বিশেষ আপডেট পেতে থাকুন।",
+      "is_active": true,
+      "available_variables": "[\"user_name\",\"date\"]"
+    }
+  ],
+  "uploaded_media": [
+    {
+      "id": "1ac80613-cffb-4403-8c8e-96d392a56d2a.jpg",
+      "filename": "test-upload.jpg",
+      "mime_type": "image/jpeg",
+      "file_size": 23,
+      "data": {
+        "type": "Buffer",
+        "data": [
+          116,
+          101,
+          115,
+          116,
+          32,
+          105,
+          109,
+          97,
+          103,
+          101,
+          32,
+          98,
+          117,
+          102,
+          102,
+          101,
+          114,
+          32,
+          100,
+          97,
+          116,
+          97,
+          10
+        ]
+      },
+      "created_at": null
+    },
+    {
+      "id": "07e41285-2a5d-4a03-9e51-ac5e0d39a1a7.jpg",
+      "filename": "legacy-test.jpg",
+      "mime_type": "image/jpeg",
+      "file_size": 14,
+      "data": {
+        "type": "Buffer",
+        "data": [
+          116,
+          101,
+          115,
+          116,
+          32,
+          106,
+          115,
+          111,
+          110,
+          32,
+          100,
+          97,
+          116,
+          97
+        ]
+      },
+      "created_at": null
     }
   ]
 }

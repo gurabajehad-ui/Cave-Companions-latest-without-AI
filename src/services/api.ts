@@ -363,9 +363,13 @@ async function request<T>(endpoint: string, options: RequestInit = {}, isMerchan
     token = getStoredToken() || getStoredMerchantToken() || getStoredAdminToken() || getStoredRiderToken();
   }
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(options.headers as Record<string, string> || {})
   };
+
+  // Do not set Content-Type header when sending FormData so browser automatically injects multipart boundary
+  if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
@@ -548,12 +552,31 @@ export const api = {
       body: JSON.stringify({ usageLimit }),
     }, false),
 
-  // Advertisement & Cave Media Upload
-  uploadMedia: (fileData: string, fileName?: string) =>
-    request<{ success: boolean; url: string }>('/api/admin/upload-media', {
+  // Advertisement & Cave Media Upload (supports standard File / Blob FormData and base64 string fallback)
+  uploadMedia: (fileOrData: File | Blob | string, fileName?: string) => {
+    if (fileOrData instanceof File || fileOrData instanceof Blob) {
+      const formData = new FormData();
+      formData.append('file', fileOrData, fileName || (fileOrData as File).name || 'media.jpg');
+      return request<{ success: boolean; url: string }>('/api/admin/upload-media', {
+        method: 'POST',
+        body: formData,
+      }, false, 300000);
+    }
+    return request<{ success: boolean; url: string }>('/api/admin/upload-media', {
       method: 'POST',
-      body: JSON.stringify({ fileData, fileName }),
-    }, false, 300000),
+      body: JSON.stringify({ fileData: fileOrData, fileName }),
+    }, false, 300000);
+  },
+
+  // Standard File Upload API (multipart/form-data via multer pipeline)
+  uploadFile: (file: File | Blob, fileName?: string) => {
+    const formData = new FormData();
+    formData.append('file', file, fileName || (file as File).name || 'upload.jpg');
+    return request<{ success: boolean; url: string; fileName: string; mimeType: string; size: number }>('/api/media/upload', {
+      method: 'POST',
+      body: formData,
+    }, false, 300000);
+  },
 
   // Auth
   getGoogleConfig: () =>
@@ -1323,16 +1346,31 @@ export const api = {
       body: JSON.stringify({ phone, otpCode })
     }),
 
-  uploadMerchantDocument: (fileData: string, fileName?: string, documentType?: string) =>
-    request<{
+  uploadMerchantDocument: (fileOrData: File | Blob | string, fileName?: string, documentType?: string) => {
+    if (fileOrData instanceof File || fileOrData instanceof Blob) {
+      const formData = new FormData();
+      formData.append('file', fileOrData, fileName || (fileOrData as File).name || 'document.jpg');
+      if (documentType) formData.append('documentType', documentType);
+      return request<{
+        success: boolean;
+        url: string;
+        fileName: string;
+        message: string;
+      }>('/api/merchant/upload-document', {
+        method: 'POST',
+        body: formData
+      });
+    }
+    return request<{
       success: boolean;
       url: string;
       fileName: string;
       message: string;
     }>('/api/merchant/upload-document', {
       method: 'POST',
-      body: JSON.stringify({ fileData, fileName, documentType })
-    }),
+      body: JSON.stringify({ fileData: fileOrData, fileName, documentType })
+    });
+  },
 
   getCommissionPolicy: () =>
     request<{

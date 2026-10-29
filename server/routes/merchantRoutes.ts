@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import multer from 'multer';
 import { db } from '../db.js';
 import {
   generateMerchantToken,
@@ -26,6 +27,14 @@ import {
 } from '../reports/financialReportGenerator.js';
 
 export const merchantRoutes = Router();
+
+// Standard Multer multipart memory storage for binary streaming & persistence
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB max for merchant verification documents
+  }
+});
 
 // Ensure upload directory exists
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'documents');
@@ -119,8 +128,9 @@ merchantRoutes.post('/verify-otp', authRateLimiter, async (req, res: Response) =
 /**
  * POST /api/merchant/upload-document
  * Securely upload document images (NID, Trade License, Selfie, Shop Photo)
+ * Supports standard browser-native FormData multipart and JSON base64.
  */
-merchantRoutes.post('/upload-document', async (req, res: Response) => {
+merchantRoutes.post('/upload-document', upload.single('file'), async (req: any, res: Response) => {
   try {
     const authHeader = req.headers.authorization;
     const regHeader = req.headers['x-registration-token'];
@@ -153,41 +163,49 @@ merchantRoutes.post('/upload-document', async (req, res: Response) => {
     // Always allow registration document uploads during wizard registration
     isAuthorized = true;
 
-    const { fileData, fileName, documentType } = req.body;
+    const { fileData, fileName: bodyFileName, documentType } = req.body || {};
 
-    if (!fileData) {
-      res.status(400).json({ success: false, message: 'ফাইল ডাটা পাওয়া যায়নি।' });
-      return;
-    }
-
-    // Base64 upload support
     let buffer: Buffer;
     let mimeType = 'image/jpeg';
     let ext = 'jpg';
+    let originalName = 'document';
 
-    if (typeof fileData === 'string' && fileData.startsWith('data:')) {
-      const matches = fileData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-      if (!matches || matches.length !== 3) {
-        res.status(400).json({ success: false, message: 'অবৈধ ফাইল ফরম্যাট।' });
+    if (req.file) {
+      // 1. Standard browser-native multipart binary upload
+      buffer = req.file.buffer;
+      originalName = req.file.originalname || 'document';
+      mimeType = req.file.mimetype || 'image/jpeg';
+      ext = path.extname(originalName).replace('.', '') || (mimeType.split('/')[1] || 'jpg');
+    } else if (fileData) {
+      // 2. Base64 fallback support
+      if (typeof fileData === 'string' && fileData.startsWith('data:')) {
+        const matches = fileData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (!matches || matches.length !== 3) {
+          res.status(400).json({ success: false, message: 'অবৈধ ফাইল ফরম্যাট।' });
+          return;
+        }
+
+        mimeType = matches[1];
+        if (!['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(mimeType)) {
+          res.status(400).json({ success: false, message: 'শুধুমাত্র JPG, PNG, WEBP বা PDF ফাইল গ্রহণযোগ্য।' });
+          return;
+        }
+
+        ext = mimeType.split('/')[1] || 'jpg';
+        buffer = Buffer.from(matches[2], 'base64');
+        originalName = bodyFileName || 'document';
+      } else {
+        res.status(400).json({ success: false, message: 'অবৈধ ফাইল স্ট্রিং।' });
         return;
       }
-
-      mimeType = matches[1];
-      if (!['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(mimeType)) {
-        res.status(400).json({ success: false, message: 'শুধুমাত্র JPG, PNG, WEBP বা PDF ফাইল গ্রহণযোগ্য।' });
-        return;
-      }
-
-      ext = mimeType.split('/')[1] || 'jpg';
-      buffer = Buffer.from(matches[2], 'base64');
     } else {
-      res.status(400).json({ success: false, message: 'অবৈধ ফাইল স্ট্রিং।' });
+      res.status(400).json({ success: false, message: 'ফাইল ডাটা পাওয়া যায়নি (No file data provided in form-data or JSON)।' });
       return;
     }
 
-    // Validate size (max 5MB)
-    if (buffer.length > 5 * 1024 * 1024) {
-      res.status(400).json({ success: false, message: 'ফাইল সাইজ সর্বোচ্চ ৫ মেগাবাইটের মধ্যে হতে হবে।' });
+    // Validate size (max 10MB)
+    if (buffer.length > 10 * 1024 * 1024) {
+      res.status(400).json({ success: false, message: 'ফাইল সাইজ সর্বোচ্চ ১০ মেগাবাইটের মধ্যে হতে হবে।' });
       return;
     }
 
