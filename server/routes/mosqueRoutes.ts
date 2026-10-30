@@ -2,11 +2,19 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
+import multer from 'multer';
 import { db } from '../db.js';
 import { verifyUserToken } from '../auth.js';
 import { NotificationService } from '../services/notificationService.js';
 
 const router = Router();
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB max photo size
+  }
+});
 
 const MEDIA_CACHE_DIR = path.join(process.cwd(), 'uploads', 'media');
 if (!fs.existsSync(MEDIA_CACHE_DIR)) {
@@ -59,32 +67,46 @@ router.get('/check-duplicates', async (req, res) => {
 });
 
 // 1.3 Photo upload endpoint for Mosque & Imam photos
-router.post('/upload-photo', async (req: Request, res: Response) => {
+router.post('/upload-photo', upload.single('file'), async (req: Request, res: Response) => {
   try {
-    const { imageBase64, filename, mimeType } = req.body;
-    if (!imageBase64 || typeof imageBase64 !== 'string') {
-      res.status(400).json({ success: false, message: 'ছবির ডাটা (Base64) প্রদান করুন।' });
+    let buffer: Buffer;
+    let detectedMime = 'image/jpeg';
+    let cleanFilename = '';
+
+    if (req.file) {
+      // 1. Binary multipart file upload via FormData
+      buffer = req.file.buffer;
+      detectedMime = req.file.mimetype || 'image/jpeg';
+      cleanFilename = req.file.originalname ? path.basename(req.file.originalname) : `mosque_${Date.now()}.jpg`;
+    } else if (req.body && (req.body.imageBase64 || req.body.fileData)) {
+      // 2. Backward compatibility JSON base64 fallback
+      const rawData = req.body.imageBase64 || req.body.fileData;
+      const { filename, mimeType } = req.body;
+      let pureBase64 = rawData;
+      detectedMime = mimeType || 'image/jpeg';
+      if (typeof rawData === 'string' && rawData.includes('base64,')) {
+        const parts = rawData.split('base64,');
+        const prefix = parts[0];
+        pureBase64 = parts[1];
+        const match = prefix.match(/data:([a-zA-Z0-9/+-]+);/);
+        if (match) detectedMime = match[1];
+      }
+      buffer = Buffer.from(pureBase64, 'base64');
+      cleanFilename = filename ? path.basename(filename) : `mosque_${Date.now()}.jpg`;
+    } else {
+      res.status(400).json({ success: false, message: 'ছবির ফাইল বা ডাটা (Base64) প্রদান করুন।' });
       return;
     }
 
-    let pureBase64 = imageBase64;
-    let detectedMime = mimeType || 'image/jpeg';
-    if (imageBase64.includes('base64,')) {
-      const parts = imageBase64.split('base64,');
-      const prefix = parts[0];
-      pureBase64 = parts[1];
-      const match = prefix.match(/data:([a-zA-Z0-9/+-]+);/);
-      if (match) detectedMime = match[1];
-    }
-
-    const buffer = Buffer.from(pureBase64, 'base64');
     if (buffer.length > 10 * 1024 * 1024) {
       res.status(400).json({ success: false, message: 'ছবির সাইজ সর্বোচ্চ ১০ মেগাবাইট হতে পারবে।' });
       return;
     }
 
     const mediaId = `media_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
-    const cleanFilename = filename ? path.basename(filename) : `${mediaId}.jpg`;
+    if (!cleanFilename) {
+      cleanFilename = `${mediaId}.jpg`;
+    }
 
     // Save to PostgreSQL uploaded_media
     await db.saveUploadedMedia({

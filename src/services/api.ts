@@ -985,8 +985,25 @@ export const api = {
     }>(`/api/mosques/check-duplicates?${query.toString()}`);
   },
 
-  uploadMosquePhoto: (data: { imageBase64: string; filename?: string; mimeType?: string }) =>
-    request<{
+  uploadMosquePhoto: (
+    data: File | Blob | { imageBase64?: string; fileData?: string; filename?: string; mimeType?: string },
+    optionalFilename?: string
+  ) => {
+    if (data instanceof Blob) {
+      const formData = new FormData();
+      const fname = optionalFilename || (data as File).name || 'mosque_photo.jpg';
+      formData.append('file', data, fname);
+      return request<{
+        success: boolean;
+        mediaId: string;
+        url: string;
+        message: string;
+      }>('/api/mosques/upload-photo', {
+        method: 'POST',
+        body: formData
+      });
+    }
+    return request<{
       success: boolean;
       mediaId: string;
       url: string;
@@ -994,7 +1011,8 @@ export const api = {
     }>('/api/mosques/upload-photo', {
       method: 'POST',
       body: JSON.stringify(data)
-    }),
+    });
+  },
 
   requestMosque: (data: {
     name: string;
@@ -2989,8 +3007,22 @@ export const api = {
       products: import('../types').Product[];
     }>('/api/merchant/products', {}, true),
 
-  uploadProductImage: (fileData: string, fileName?: string) =>
-    request<{
+  uploadProductImage: (fileOrData: File | Blob | string, fileName?: string) => {
+    if (typeof fileOrData !== 'string') {
+      const formData = new FormData();
+      formData.append('file', fileOrData, fileName || (fileOrData as File).name || 'product.jpg');
+      return request<{
+        success: boolean;
+        imageUrl: string;
+        mediaId: string;
+        fileName: string;
+        message: string;
+      }>('/api/merchant/products/upload-image', {
+        method: 'POST',
+        body: formData
+      }, true);
+    }
+    return request<{
       success: boolean;
       imageUrl: string;
       mediaId: string;
@@ -2998,8 +3030,9 @@ export const api = {
       message: string;
     }>('/api/merchant/products/upload-image', {
       method: 'POST',
-      body: JSON.stringify({ fileData, fileName })
-    }, true),
+      body: JSON.stringify({ fileData: fileOrData, fileName })
+    }, true);
+  },
 
   addMerchantProduct: (data: {
     name: string;

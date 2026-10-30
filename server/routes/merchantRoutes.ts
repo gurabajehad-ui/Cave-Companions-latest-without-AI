@@ -1563,47 +1563,55 @@ merchantRoutes.post('/commission-change-request', requireMerchantAuth, async (re
  * Upload a product image from Android phone gallery or camera capture.
  * Stores binary data in durable PostgreSQL uploaded_media table and writes to local disk cache.
  */
-merchantRoutes.post('/products/upload-image', requireMerchantAuth, async (req: AuthRequest, res: Response) => {
+merchantRoutes.post('/products/upload-image', requireMerchantAuth, upload.single('file'), async (req: AuthRequest, res: Response) => {
   try {
-    const { fileData, fileName } = req.body;
+    let buffer: Buffer;
+    let mimeType = 'image/jpeg';
+    let ext = 'jpg';
+    let safeFileName = '';
 
-    if (!fileData) {
+    if (req.file) {
+      // 1. Binary multipart file upload via FormData
+      buffer = req.file.buffer;
+      mimeType = req.file.mimetype || 'image/jpeg';
+      safeFileName = req.file.originalname || `prod_${Date.now()}.jpg`;
+      const detectedExt = path.extname(safeFileName).replace('.', '').toLowerCase();
+      ext = detectedExt || mimeType.split('/')[1]?.replace('+xml', '') || 'jpg';
+    } else if (req.body && req.body.fileData) {
+      // 2. Backward compatibility JSON base64 fallback
+      const { fileData, fileName } = req.body;
+      if (typeof fileData === 'string' && fileData.startsWith('data:')) {
+        const matches = fileData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (!matches || matches.length !== 3) {
+          res.status(400).json({ success: false, message: 'অবৈধ ইমেজ ডাটা ফরম্যাট।' });
+          return;
+        }
+        mimeType = matches[1];
+        ext = mimeType.split('/')[1]?.replace('+xml', '') || 'jpg';
+        buffer = Buffer.from(matches[2], 'base64');
+      } else {
+        res.status(400).json({ success: false, message: 'অবৈধ ফাইল স্ট্রিং।' });
+        return;
+      }
+      safeFileName = fileName || `prod_${Date.now()}.${ext}`;
+    } else {
       res.status(400).json({ success: false, message: 'ছবির ফাইল ডাটা পাওয়া যায়নি।' });
       return;
     }
 
-    let buffer: Buffer;
-    let mimeType = 'image/jpeg';
-    let ext = 'jpg';
-
-    if (typeof fileData === 'string' && fileData.startsWith('data:')) {
-      const matches = fileData.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-      if (!matches || matches.length !== 3) {
-        res.status(400).json({ success: false, message: 'অবৈধ ইমেজ ডাটা ফরম্যাট।' });
-        return;
-      }
-
-      mimeType = matches[1];
-      if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'].includes(mimeType)) {
-        res.status(400).json({ success: false, message: 'শুধুমাত্র JPG, PNG, WEBP বা GIF ছবি আপলোড করা যাবে।' });
-        return;
-      }
-
-      ext = mimeType.split('/')[1]?.replace('+xml', '') || 'jpg';
-      buffer = Buffer.from(matches[2], 'base64');
-    } else {
-      res.status(400).json({ success: false, message: 'অবৈধ ফাইল স্ট্রিং।' });
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'].includes(mimeType)) {
+      res.status(400).json({ success: false, message: 'শুধুমাত্র JPG, PNG, WEBP বা GIF ছবি আপলোড করা যাবে।' });
       return;
     }
 
-    // Limit to 5MB max size
-    if (buffer.length > 5 * 1024 * 1024) {
-      res.status(400).json({ success: false, message: 'ছবির সাইজ সর্বোচ্চ ৫ মেগাবাইট হতে পারবে।' });
+    // Limit to 10MB max size
+    if (buffer.length > 10 * 1024 * 1024) {
+      res.status(400).json({ success: false, message: 'ছবির সাইজ সর্বোচ্চ ১০ মেগাবাইট হতে পারবে।' });
       return;
     }
 
     const uniqueId = `prod_${Date.now()}_${crypto.randomBytes(6).toString('hex')}.${ext}`;
-    const safeFileName = fileName || uniqueId;
+    if (!safeFileName) safeFileName = uniqueId;
 
     // 1. Save to persistent PostgreSQL storage table (uploaded_media)
     const saved = await db.saveUploadedMedia({
